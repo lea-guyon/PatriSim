@@ -1,0 +1,323 @@
+initialize() {
+	initializeSLiMModelType("nonWF");
+	
+	// record pedigrees
+	initializeSLiMOptions(keepPedigrees = T);
+	
+	// output tree sequences
+	initializeTreeSeq();
+	
+	initializeSex("A");
+	
+	// set mutation rate to 0
+	// mutations will be added during the processing of the tree sequences
+	initializeMutationRate(0);
+	
+	// number of villages
+	defineConstant("N_VILLAGES", bash_Num_villages);
+	
+	// chromosome sizes
+	defineConstant("CHR_SIZE", bash_chr_size);
+	
+	// number of replicates
+	defineConstant("N_REP", bash_Num_replicat);
+	
+	// residence rule
+	defineConstant("RES", "bash_residence");
+	
+	// migration rate
+	defineConstant("M_RATIO", bash_migration_rate);
+	
+	// female migration rate
+	if (RES == "patrilocal") {
+		defineConstant("MF_RATIO", 1);
+		//defineConstant("MF_RATIO", runif(1, 0.9, 1));
+	}
+	else if (RES == "matrilocal") {
+		defineConstant("MF_RATIO", 0);
+		//defineConstant("MF_RATIO", runif(1, 0, 0.1));
+	}
+	else {
+		defineConstant("MF_RATIO", 0.5);
+	}
+	
+	// growth rate
+	defineConstant("R", bash_growth_rate);
+	
+	// polygyny
+	defineConstant("POLY", bash_polygyny);
+	
+	// output folder
+	defineConstant("nameDir", "bash_namedir");
+	
+	// set neutral mutations and convert to substitution
+	initializeMutationType("m1", 0.5, "f", 0.0);  // autosomes
+	initializeMutationType("m2", 1.0, "f", 0.0);  // Y marker
+	initializeMutationType("m3", 1.0, "f", 0.0);  // mito marker
+	
+	initializeGenomicElementType("g1", m1, 1.0);
+	
+	defineConstant("UpperA", CHR_SIZE[0]);  // upper boundary for autosomes	
+	defineConstant("LowerXY", CHR_SIZE[0] + 1);  // lower boundary for X/Y chromosomes
+	defineConstant("UpperXY", CHR_SIZE[0] + CHR_SIZE[1] + 2);  // upper boundary for X/Y chromosomes	
+	defineConstant("LowerMt", CHR_SIZE[0] + CHR_SIZE[1] + 3);  // lower boundary for mtDNA
+	defineConstant("UpperMt", CHR_SIZE[0] + CHR_SIZE[1] + CHR_SIZE[2] + 4);  // upper boundary for mtDNA
+	
+	initializeGenomicElement(g1, 0, UpperMt);
+	
+	// recombination rate is set to 0 for Y chromosome and mtDNA
+	initializeRecombinationRate(c(1.1e-8, 0.5, 0, 0.5, 1e-8), c(UpperA, LowerXY, UpperXY, LowerMt, UpperMt), sex='M');
+	initializeRecombinationRate(c(1.1e-8, 0.5, 1e-8, 0.5, 0), c(UpperA, LowerXY, UpperXY, LowerMt, UpperMt), sex='F');
+	
+	defineConstant("output", paste0("~/Documents/SLiM_model/Tables/Simulations_metrics/bilateral/regular/r=", R, '/', nameDir, "/"));
+}
+
+1 first() {
+	// load burn-in simulation
+	sim.readFromPopulationFile(paste(c('~/Documents/SLiM_model/Burn_in/outgroup_villages_unilineal_descent_burn_in_', asString(N_REP), '.trees'), sep=""));
+	T_POP = size(sim.subpopulations);  // total number of subpopulations
+	suppressWarnings(F);
+	
+	// remove unnecessary subpopulations from the burnin 
+	// this step is required when modelling bilateral descent 
+	// because the burnin is the same as for unilineal descent
+	for (i in seq(N_VILLAGES + 1, T_POP)) {
+		pop = sim.subpopulations[sim.subpopulations.id == i];
+		pop.removeSubpopulation();
+	}
+	
+	N_IND = size(p1.individuals);
+	// split the panmictic population into N_VILLAGES villages of size K_village
+	K_village = integerDiv(N_IND, N_VILLAGES);
+	for (i in 2:N_VILLAGES) {
+		new_pop = sim.subpopulations[sim.subpopulations.id == i];
+		migrants = p1.sampleIndividuals(K_village);
+		new_pop.takeMigrants(migrants);
+	}
+	
+	// set village initial size
+	sim.setValue("K_village", K_village);
+}
+
+1 first() {
+	filename = paste(c('bash_Num_replicat/Sim_', asString(MF_RATIO),'_bash_Num_replicat_gen_0.trees'), sep = "");
+	print(filename);
+	sim.treeSeqOutput(path = filename);
+}
+
+first() {
+	// sex-specific migration 
+	pops = sim.subpopulations;  // select all villages
+	inds = pops.individuals;
+	nInd = size(inds);  // nb of individuals
+	IndF = inds[inds.sex == 'F'];
+	IndM = inds[inds.sex == 'M'];
+	adults = inds.pedigreeID;
+	sim.setValue("adults", adults);
+	
+	nMigrantsF = asInteger(nInd * M_RATIO * MF_RATIO);  // nb of female migrants
+	nMigrantsM = asInteger(nInd * M_RATIO * (1-MF_RATIO));  // nb of male migrants
+	migrantsF = sample(IndF, nMigrantsF);
+	migrantsM = sample(IndM, nMigrantsM);
+	
+	// migration in a new village
+	for (migrant in migrantsF)  {
+		do dest = sample(pops, 1);
+		while (dest == migrant.subpopulation);
+		dest.takeMigrants(migrant);
+	}
+	for (migrant in migrantsM)  {
+		do dest = sample(pops, 1);
+		while (dest == migrant.subpopulation);
+		dest.takeMigrants(migrant);
+	}
+}
+
+reproduction(NULL, NULL) {
+	// reproduction is called once per generation
+	self.active = 0;
+	
+	// initialize nb of couples
+	nCouples = 0;
+	
+	// initialize nb of children per couple
+	nChildrenPerCouple = Dictionary();
+	
+	// initialize lists of mothers and fathers
+	mot = c();
+	fat = c();
+	
+	// initialize list of failed children
+	failedChildren = c();
+	
+	// initialize number of single individuals
+	nSingleInd = 0;
+	
+	nIndsF = size(sim.subpopulations.individuals[sim.subpopulations.individuals.sex == 'F']); // nb of females
+	nIndsM = size(sim.subpopulations.individuals[sim.subpopulations.individuals.sex == 'M']); // nb of males
+	nInds = nIndsF + nIndsM;
+	
+	// make K_village children
+	K_village = sim.getValue("K_village");
+	K_village = asInteger(K_village * exp(R)); // exponential growth
+	sim.setValue("K_village", K_village); // update K_village
+	
+	for (pop in sim.subpopulations) {
+		// initialize number of children
+		nChildrenDone = 0;
+		
+		inds = pop.individuals;
+		indsF = inds[inds.sex=='F'];
+		indsM = inds[inds.sex=='M'];
+		sizeF = size(indsF); // nb of females
+		sizeM = size(indsM); // nb of males
+		
+		if (POLY == F) {
+			// maximum nb of couples
+			size = min(sizeF, sizeM);
+			
+			// single individuals
+			nSingleInd = nSingleInd + abs(sizeF - sizeM);
+			
+			// shuffle females and males in lists
+			indsF = pop.sampleIndividuals(size, sex = 'F');
+			indsM = pop.sampleIndividuals(size, sex='M');
+		}
+		else {
+			size = sizeF;
+			indsF = pop.sampleIndividuals(size, sex = 'F');
+			sampledM = pop.sampleIndividuals(integerDiv(size,2), sex = 'M'); // 2 females for 1 male
+			indsM = sample(sampledM, size, replace = T);
+		}
+		
+		// initialize nChildrenPerCouple for each couple
+		for (i in seq(0, size)) {
+			nChildrenPerCouple.setValue(asString(nCouples + i), 0);
+		}
+		
+		while (nChildrenDone < K_village) {
+			
+			// random draw
+			index = asInteger(runif(1,0,size));
+			
+			father = indsM[index]; // we take the father
+			mother = indsF[index]; // we take the mother
+			
+			// alternate sex
+			if (integerMod(nChildrenDone, 2) == 0) {
+				sex = "M";
+			}
+			else {
+				sex = "F";
+			}
+			
+			child = pop.addCrossed(mother, father, sex = sex);	// make child
+			wrongSex = F;
+			
+			// females should not have a Y and have a mito and males should have a Y and not a mito
+			if (child.genome2.containsMarkerMutation(m2, UpperXY)) {
+				if (child.genome1.containsMarkerMutation(m3, UpperMt)) {
+					failedChildren = c(failedChildren, child.pedigreeID);
+					wrongSex = T;
+				}
+				else if (child.sex == 'F') {
+					failedChildren = c(failedChildren, child.pedigreeID);
+					wrongSex = T;
+				}
+			}
+			else {
+				if (!child.genome1.containsMarkerMutation(m3, UpperMt)) {
+					failedChildren = c(failedChildren, child.pedigreeID);
+					wrongSex = T;
+				}
+				else if (child.sex == 'M') {
+					failedChildren = c(failedChildren, child.pedigreeID);
+					wrongSex = T;
+				}
+			}
+			
+			if (wrongSex == F) {
+				// increase the total nb of children
+				nChildrenDone = nChildrenDone + 1;
+				// update nChildrenPerCouple
+				nChildren = nChildrenPerCouple.getValue(asString(nCouples + index));
+				nChildren = nChildren + 1;
+				nChildrenPerCouple.setValue(asString(nCouples + index), nChildren);
+				// increment lists of mothers and fathers
+				fat = unique(c(fat, father));
+				mot = unique(c(mot, mother));
+			}
+		}
+		nCouples = nCouples + size;
+	}
+	
+	sim.setValue("nChildrenPerCouple", nChildrenPerCouple);
+	mothers = size(mot)/nIndsF * 100;
+	sim.setValue("mothers", mothers);
+	fathers = size(fat)/nIndsM * 100;
+	sim.setValue("fathers", fathers);
+	sim.setValue('failedChildren', failedChildren);
+	sim.setValue('singleInd', nSingleInd/nInds * 100);
+}
+
+early() {
+	//non-overlapping generations : we kill parents
+	inds = sim.subpopulations.individuals;
+	adults = sim.getValue("adults");
+	if (!isNULL(adults)) {
+		sim.killIndividuals(sim.individualsWithPedigreeIDs(adults));
+	}
+	
+	// kill failed children
+	failedChildren = sim.getValue("failedChildren");
+	if (!isNULL(failedChildren)) {
+		sim.killIndividuals(sim.individualsWithPedigreeIDs(failedChildren));
+	}
+}
+
+20001:20100	late() {
+	if (community.tick % 2 == 0) {
+		nChildrenPerCouple = sim.getValue("nChildrenPerCouple");
+		nChildren = c();
+		for (couple in nChildrenPerCouple.allKeys) {
+			nChildren = c(nChildren, nChildrenPerCouple.getValue(couple));
+		}
+		nChildrenMean = mean(nChildren);
+		nChildrenVar = var(nChildren);
+		mothers = sim.getValue("mothers");
+		fathers =  sim.getValue("fathers");
+		singleInd = sim.getValue("singleInd");
+		line = paste("bash_Num_replicat", community.tick, nChildrenMean, nChildrenVar, mothers, fathers, singleInd);
+		writeFile(paste0(output, "metrics.txt"), line, append = T);
+	}
+}
+
+20020 late() {
+	filename = paste(c('bash_Num_replicat/Sim_', asString(MF_RATIO),'_bash_Num_replicat_gen_20.trees'), sep = "");
+	print(filename);
+	sim.treeSeqOutput(path = filename);
+}
+
+20040 late() {
+	filename = paste(c('bash_Num_replicat/Sim_', asString(MF_RATIO),'_bash_Num_replicat_gen_40.trees'), sep = "");
+	print(filename);
+	sim.treeSeqOutput(path = filename);
+}
+
+20060 late() {
+	filename = paste(c('bash_Num_replicat/Sim_', asString(MF_RATIO),'_bash_Num_replicat_gen_60.trees'), sep = "");
+	print(filename);
+	sim.treeSeqOutput(path = filename);
+}
+
+20080 late() {
+	filename = paste(c('bash_Num_replicat/Sim_', asString(MF_RATIO),'_bash_Num_replicat_gen_80.trees'), sep = "");
+	print(filename);
+	sim.treeSeqOutput(path = filename);
+}
+
+20100 late() {
+	filename = paste(c('bash_Num_replicat/Sim_', asString(MF_RATIO),'_bash_Num_replicat_gen_100.trees'), sep = "");
+	print(filename);
+	sim.treeSeqOutput(path = filename);
+}

@@ -1,0 +1,322 @@
+initialize() {
+	initializeSLiMModelType("nonWF");
+	
+	// record pedigrees
+	initializeSLiMOptions(keepPedigrees = T);
+	
+	// output tree sequences
+	initializeTreeSeq();
+	
+	// number of villages
+	defineConstant("N_VILLAGES", bash_Num_villages);
+	
+	// number of lineages per village
+	defineConstant("N_LIN", bash_nGroupsPerVillage);
+	
+	// carrying capacity
+	defineConstant("K_total", bash_total_carrying_capacity);
+	defineConstant("K", bash_carrying_capacity);  // per village
+	
+	// chromosome sizes
+	defineConstant("CHR_SIZE", bash_chr_size);
+	
+	// descent rule : unilineal or bilateral
+	defineConstant("descent", "bash_descent");
+	
+	// number of replicates
+	defineConstant("N_REP", bash_Num_replicat);
+	
+	// set mutation rate to 0
+	// mutations will be added during the processing of the tree sequences
+	initializeMutationRate(0);
+	
+	// set neutral mutations and convert to substitution
+	initializeMutationType("m1", 0.5, "f", 0.0);  // autosomes
+	initializeMutationType("m2", 1.0, "f", 0.0);  // Y marker
+	initializeMutationType("m3", 1.0, "f", 0.0);  // mito marker
+	
+	initializeGenomicElementType("g1", m1, 1.0);
+	
+	initializeSex("A");
+	
+	defineConstant("UpperA", CHR_SIZE[0]);  // upper boundary for autosomes	
+	defineConstant("LowerXY", CHR_SIZE[0] + 1);  // lower boundary for X/Y chromosomes
+	defineConstant("UpperXY", CHR_SIZE[0] + CHR_SIZE[1] + 2);  // upper boundary for X/Y chromosomes	
+	defineConstant("LowerMt", CHR_SIZE[0] + CHR_SIZE[1] + 3);  // lower boundary for mtDNA
+	defineConstant("UpperMt", CHR_SIZE[0] + CHR_SIZE[1] + CHR_SIZE[2] + 4);  // upper boundary for mtDNA
+	initializeGenomicElement(g1, 0, UpperMt);
+	
+	// recombination rate is set to 0 for Y chromosome and mtDNA
+	initializeRecombinationRate(c(1.1e-8, 0.5, 0, 0.5, 1e-8), c(UpperA, LowerXY, UpperXY, LowerMt, UpperMt), sex='M');
+	initializeRecombinationRate(c(1.1e-8, 0.5, 1e-8, 0.5, 0), c(UpperA, LowerXY, UpperXY, LowerMt, UpperMt), sex='F');
+	
+	if (descent == "unilineal") {
+		// parent-children arrays
+		defineConstant("output_patri", "~/Documents/SLiM_model/Burn_in/patrilineal_ID_bash_Num_replicat.txt");
+		deleteFile(output_patri);
+		defineConstant("output_matri", "~/Documents/SLiM_model/Burn_in/matrilineal_ID_bash_Num_replicat.txt");
+		deleteFile(output_matri);
+	}
+}
+
+1 first() {
+	// big panmictic population
+	sim.addSubpop(1, K_total);
+	N = N_VILLAGES * N_LIN;  // total number of lineages
+	
+	if (descent == "unilineal") {
+		nLin = 100 * N;  // initialize a large number of lineages
+	}
+	else {
+		nLin = N_VILLAGES;
+	}
+	
+	// create lineages (unilineal descent) or villages (bilateral descent)
+	for (i in 2:nLin) {
+		if (descent == "unilineal") {
+			newPop = sim.addSubpop(i, K);
+		}
+		else {
+			K_village = K * N_LIN;  // number of individuals per village
+			newPop = sim.addSubpop(i, K_village);
+		}
+		// kill individuals : there is only one population in the initial state
+		for (ind in newPop.individuals) {
+			ind.fitnessScaling = 0;
+		}
+	}
+	
+	// add markers for Y chromosome and mtDNA
+	indiv = p1.individuals;
+	indsM = indiv[indiv.sex == 'M'];
+	indsF = indiv[indiv.sex == 'F'];
+	indsM.genome2.addNewMutation(m2, 0.0, UpperXY);
+	indsF.genome1.addNewMutation(m3, 0.0, UpperMt);
+}
+
+first() {
+	adults = p1.individuals.pedigreeID;
+	sim.setValue("adults", adults);
+}
+
+reproduction(NULL, NULL) {
+	self.active = 0;  // reproduction is called once per generation
+	
+	// initialize number of children
+	nChildrenDone = 0;
+	
+	// initialize list of failed children
+	failedChildren = c();
+	
+	inds = p1.individuals;
+	indsF = inds[inds.sex=='F'];
+	indsM = inds[inds.sex=='M'];
+	sizeF = size(indsF); // number of females
+	sizeM = size(indsM); // number of males
+	
+	// maximum nb of couples
+	size = min(sizeF, sizeM);
+	
+	// shuffle females and males in lists
+	indsF = p1.sampleIndividuals(size, sex = 'F');
+	indsM = p1.sampleIndividuals(size, sex = 'M');
+	
+	if (descent == 'unilineal') {
+		// initialize custom IDs for males and females
+		firstFatherID = 0;
+		firstMotherID = 0;
+		if (community.tick <= 17000) {
+			matriDic = NULL;
+			patriDic = NULL;
+		}
+		else if (community.tick == 17001) {
+			matriDic = sim.getValue("matriDic");
+			patriDic = sim.getValue("patriDic");
+		}
+		else {
+			matriDic_2 = sim.getValue("matriDic_2");
+			patriDic_2 = sim.getValue("patriDic_2");
+			matriDic = matriDic_2;
+			patriDic = patriDic_2;
+		}
+		
+		if (community.tick >= 17001) {
+			matriDic_2 = NULL;
+			patriDic_2 = NULL;
+		}
+	}
+	
+	while (nChildrenDone < K_total) {
+		
+		// random draw
+		index = runif(1,0,size);
+		
+		// take parents		
+		father = indsM[index]; // we take the father
+		mother = indsF[index]; // we take the mother
+		
+		// alternate sex
+		if (integerMod(nChildrenDone, 2) == 0) {
+			sex = "M";
+		}
+		else {
+			sex = "F";
+		}
+		
+		// make child	
+		child = pop.addCrossed(mother, father, sex = sex);	
+		wrongSex = F;
+		
+		// females should not have a Y and have a mt and males should have a Y and not a mt
+		// if conditions are not met, the child is removed
+		if (child.genome2.containsMarkerMutation(m2, UpperXY)) {
+			if (child.genome1.containsMarkerMutation(m3, UpperMt)) {
+				failedChildren = c(failedChildren, child.pedigreeID);
+				wrongSex = T;
+			}
+			else if (child.sex == 'F') {
+				failedChildren = c(failedChildren, child.pedigreeID);
+				wrongSex = T;
+			}
+		}
+		else {
+			if (!child.genome1.containsMarkerMutation(m3, UpperMt)) {
+				failedChildren = c(failedChildren, child.pedigreeID);
+				wrongSex = T;
+			}
+			else if (child.sex == 'M') {
+				child.fitnessScaling = 0;
+				failedChildren = c(failedChildren, child.pedigreeID);
+				wrongSex = T;
+			}
+		}
+		
+		if (wrongSex == F) {
+			nChildrenDone = nChildrenDone + 1;  // increase number of children
+		}
+		
+		// matrices of IDs
+		// associate pedigreeID with a custom ID allowing to access to ancestors for a large number of generations
+		if (descent == "unilineal" & community.tick >= 17000 & wrongSex == F) {
+			
+			firstGen = F;
+			if (community.tick == 17000) {
+				firstGen = T;
+			}
+			
+			motherID = asString(mother.pedigreeID);
+			fatherID = asString(father.pedigreeID);
+			
+			// matri
+			if (child.sex == 'F') {
+				if (isNULL(matriDic)) {
+					matriDic = array(c(asString(child.pedigreeID), firstMotherID), c(1,2));  // TO DO : retirer ?
+					firstMotherID = firstMotherID + 1;
+				}
+				
+				else if (firstGen) {
+					matriDic = rbind(matriDic, c(asString(child.pedigreeID), firstMotherID));
+					firstMotherID = firstMotherID + 1;
+				}
+				
+				else {
+					value = c(matriDic[which(matriDic[,0] == motherID),], mother.reproductiveOutput - 1);
+					matriDic_2 = rbind(matriDic_2, c(asString(child.pedigreeID), value[2:size(value)-1]));
+				}
+			}
+			
+			// patri
+			else {
+				if (isNULL(patriDic)) {
+					patriDic = array(c(asString(child.pedigreeID), firstFatherID), c(1,2));  // TO DO : retirer ?
+					firstFatherID = firstFatherID + 1;
+				}
+				
+				else if (firstGen) {
+					patriDic = rbind(patriDic, c(asString(child.pedigreeID), firstFatherID));
+					firstFatherID = firstFatherID + 1;
+				}
+				
+				else {
+					value = c(patriDic[which(patriDic[,0] == fatherID),], father.reproductiveOutput - 1);
+					patriDic_2 = rbind(patriDic_2, c(asString(child.pedigreeID), value[2:size(value)-1]));
+				}
+			}
+		}
+	}
+	
+	if (descent == "unilineal") {
+		if (community.tick == 17000 | community.tick == 17001) {
+			sim.setValue("patriDic", patriDic);
+			sim.setValue("matriDic", matriDic);
+		}
+		if (community.tick >= 17001) {
+			sim.setValue("patriDic_2", patriDic_2);
+			sim.setValue("matriDic_2", matriDic_2);
+		}
+	}
+	sim.setValue('failedChildren', failedChildren);
+}
+
+early() {
+	//non-overlapping generations : we kill parents
+	inds = sim.subpopulations.individuals;
+	adults = sim.getValue("adults");
+	if (!isNULL(adults)) {
+		sim.killIndividuals(sim.individualsWithPedigreeIDs(adults));
+	}
+	
+	// kill failed children
+	failedChildren = sim.getValue("failedChildren");
+	if (!isNULL(failedChildren)) {
+		sim.killIndividuals(sim.individualsWithPedigreeIDs(failedChildren));
+	}
+}
+
+20000 late() {
+	if (descent ==  "unilineal") {
+		matriDic = sim.getValue("matriDic_2");
+		patriDic = sim.getValue("patriDic_2");
+		
+		// number of different ancestors through the female line in the first generation
+		nb_ancestors = size(unique(matriDic[,1]));
+		
+		// find when the number of ancestors is above 1
+		while (nb_ancestors == 1) {
+			// remove column corresponding to the first generation
+			indices = setDifference(seq(0, ncol(matriDic) - 1), c(1));
+			matriDic = matriDic[,indices];
+			// compute number of ancestors in the next column
+			nb_ancestors = size(unique(matriDic[,1]));
+		}
+		
+		// number of different ancestors through the male line in the first generation
+		nb_ancestors = size(unique(patriDic[,1]));
+		
+		// find when the number of ancestors is above 1
+		while (nb_ancestors == 1) {
+			// remove column corresponding to the first generation
+			indices = setDifference(seq(0, ncol(patriDic) - 1), c(1));
+			patriDic = patriDic[,indices];
+			// compute number of ancestors in the next column
+			nb_ancestors = size(unique(patriDic[,1]));
+		}
+		
+		// output matrices
+		for (row in seq(0, nrow(matriDic)-1)) {
+			writeFile(output_matri, paste(drop(matriDic[row,]), sep = " "), append = T);
+		}
+		for (row in seq(0, nrow(patriDic)-1)) {
+			writeFile(output_patri, paste(drop(patriDic[row,]), sep = " "), append = T);
+		}
+		
+		filename = paste(c('~/Documents/SLiM_model/Burn_in/outgroup_villages_unilineal_descent_burn_in_', asString(N_REP), '.trees'), sep = "");
+	}
+	
+	else {
+		filename = paste(c('~/Documents/SLiM_model/Burn_in/outgroup_villages_bilateral_descent_burn_in_', asString(N_REP), '.trees'), sep = "");
+	}
+	
+	// output tree sequences
+	sim.treeSeqOutput(path = filename);
+}

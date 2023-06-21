@@ -1,0 +1,35 @@
+#!/bin/bash
+
+while getopts d:D:t:r:n:R:g: flag
+do
+    case "${flag}" in
+        d) dir=${OPTARG};;
+        D) descent=${OPTARG};;
+        t) type=${OPTARG};;
+        r) gr=${OPTARG};;
+        n) nameDir=${OPTARG};;
+        R) rep=${OPTARG};;
+        g) gen=${OPTARG};;
+    esac
+done
+
+cd $dir/BEAST/$descent/$type/r=$gr/$nameDir/$rep
+file="Sim_Mito_*${rep}_gen_${gen}.nex"
+output="$dir/BEAST/$descent/$type/r=$gr/$nameDir/$rep/Sim_Mito.nex"
+
+ntax="$(perl -lne 'print $1 if /DIMENSIONS NTAX=(.*)/' $file)"
+NTAX=${ntax::-1}
+
+old="NCHAR="
+new="NTAX=$NTAX NCHAR="
+sed "s/$old/$new/g" $file > $output
+
+file="Sim_Y_*${rep}_gen_${gen}.nex"
+output="$dir/BEAST/$descent/$type/r=$gr/$nameDir/$rep/Sim_Y.nex"
+
+ntax="$(perl -lne 'print $1 if /DIMENSIONS NTAX=(.*)/' $file)"
+NTAX=${ntax::-1}
+
+old="NCHAR="
+new="NTAX=$NTAX NCHAR="
+sed "s/$old/$new/g" $file > $output
