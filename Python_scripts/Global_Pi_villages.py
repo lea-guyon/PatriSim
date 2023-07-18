@@ -1,7 +1,5 @@
 import os
-import numpy as np
 from metrics import alleles_count_global, Pi
-import re
 import glob
 import argparse
 

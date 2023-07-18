@@ -1,5 +1,3 @@
-import re
-import numpy as np
 import random
 
 def alleles_count(vcf_file, pseudohap = False) :

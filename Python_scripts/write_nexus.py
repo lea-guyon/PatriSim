@@ -1,4 +1,4 @@
-import msprime, pyslim, tskit
+import msprime, tskit
 import os
 import numpy as np
 import random

@@ -5,7 +5,6 @@ import random
 import glob
 import argparse
 import warnings
-#import sumstats
 
 def parse_args() :
 	parser = argparse.ArgumentParser(description='Split trees into A, X, Y and mito and generate vcf files')
