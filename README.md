@@ -19,6 +19,8 @@ This pipeline:
 
 NB: if you already ran the script once, it is recommended to comment lines of code running the `burnin` script.
 
+To run the scenarios presented in the paper, use the parameters values indicated in `scenarios_parameters.md`
+
 ## Requirements
 
 ### System requirements
@@ -31,8 +33,7 @@ The pipeline is designed to be run on Linux. It has been tested on Ubuntu 20.04.
 The pipeline requires SLiM v4.0.1. To install SLiM, follow the instructions given in the manual (https://messerlab.org/slim/). 
 
 ### Python dependencies
-To install python (3.8) requirements enter:
-
+To install python (3.8) requirements enter:  
 `pip3 install -r requirements.txt`
 
 ## Parameters information
