@@ -17,19 +17,20 @@ This pipeline:
 NB: if you already ran the script once, it is recommended to comment lines of code running the `burnin` script.
 
 ## Requirements
-The pipeline requires SLiM v4.0.1 and the following python (3.8) packages: 
-- `tskit` (0.5.4)
-- `msprime` (1.2.0)
-- `pyslim` (1.0.1)
-- `numpy` (1.23.2)
-- `os`
-- `glob`
-- `argparse`
-- `re`
-- `random`
-- `warnings`
 
-To install SLiM, follow the instructions given in the manual (https://messerlab.org/slim/). 
+### System requirements
+The pipeline requires a standard computer with enough RAM to support the in-memory operations.
+
+#### OS requirements
+The pipeline is designed to be run on Linux. It has been tested on Ubuntu 20.04.
+
+### SLiM
+The pipeline requires SLiM v4.0.1. To install SLiM, follow the instructions given in the manual (https://messerlab.org/slim/). 
+
+### Python dependencies
+To install python (3.8) requirements enter:
+
+`pip3 install -r requirements.txt`
 
 ## Parameters information
 
