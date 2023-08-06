@@ -2,6 +2,9 @@
 
 Pipeline simulating human genomes under scenarios with different descent (bilateral, patrilineal, matrilineal) and residence (patrilocal, matrilocal) rules and computing diversity estimators on simulated genetic data.
 
+## Installation
+`git clone https://github.com/lea-guyon/PatriSim`
+
 ## Summary
 
 To run the pipeline, modify the `PARAMETERS` section in the file `main.sh` (see Fig 1 in article). See "Parameters information" to have a description of each parameter. Then execute the .sh file with bash in a terminal. 
