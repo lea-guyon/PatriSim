@@ -30,9 +30,9 @@ initialize() {
 	
 	// fission threshold
 	defineConstant("FITH", bash_fission_threshold);
-	
-	// friendly fission : groups stay in the same village. If not, a group moves to another village
-	defineConstant("FF", bash_friendly_fission);
+
+	// probability for a descent group to move to another village after a split
+	defineConstant("pM", bash_pM);
 	
 	// violence
 	defineConstant("V", bash_violence);
@@ -43,42 +43,29 @@ initialize() {
 	// descent rule
 	defineConstant("DESCENT", "bash_descent_rule");
 	
-	// migration rate
-	defineConstant("M_RATIO", bash_migration_rate);
-	
-	// residence rule
-	defineConstant("RES", "bash_residence_rule");
-	
 	// female migration rate
-	if (RES == "patrilocal") {
-		defineConstant("MF_RATIO", 1);
-		//defineConstant("MF_RATIO", runif(1, 0.9, 1));
-	}
-	else {
-		defineConstant("MF_RATIO", 0);
-		//defineConstant("MF_RATIO", runif(1, 0, 0.1));
-	}
+	defineConstant("MF_RATIO", bash_mf_ratio);
+
+	// male migration rate
+	defineConstant("MM_RATIO", bash_mm_ratio);
 	
 	// variance of the normal law used to draw growth rates
 	defineConstant("sigma", bash_sigma);
 	
 	// growth rate
-	defineConstant('R', bash_growth_rate);
+	defineConstant("R", bash_growth_rate);
+	
+	// polygyny
+	defineConstant("POLY", bash_polygyny);
+	defineConstant("supermale", bash_supermale);
 	
 	// transmission of growth rate to the new group
-	defineConstant('TM', "bash_transmission");
+	defineConstant("TM", "bash_transmission");
 	
-	// non random initial groups
-	defineConstant('RL', bash_random_lin);
-	
-	// add variance to growth rates at the moment of fission (ie TM)
-	defineConstant('VARGR', bash_var_gr);
-	
-	// Output folder
-	defineConstant('nameDir', "bash_namedir");
+	// output folder
+	defineConstant("nameDir", "bash_namedir");
 	
 	// set neutral mutations and convert to substitution
-	// TO DO : change marker numbers
 	initializeMutationType("m1", 0.5, "f", 0.0);
 	initializeMutationType("m2", 1.0, "f", 0.0); // Y marker
 	initializeMutationType("m3", 1.0, "f", 0.0); // mt marker
@@ -87,7 +74,7 @@ initialize() {
 	initializeMutationType("m5", 1.0, "f", 0.0); // village 2 marker
 	initializeMutationType("m6", 1.0, "f", 0.0); // village 3 marker	
 	initializeMutationType("m7", 1.0, "f", 0.0); // village 4 marker	
-	initializeMutationType("m8", 1.0, "f", 0.0); // village 5 marker
+	initializeMutationType("m8", 1.0, "f", 0.0); // village 5 marker	
 	
 	initializeGenomicElementType("g1", m1, 1.0);
 	
@@ -115,7 +102,7 @@ initialize() {
 	
 	// load the burn-in simulation
 	suppressWarnings(T);
-	sim.readFromPopulationFile(paste0(c('~/Documents/SLiM_model/Burn_in/outgroup_villages_unilineal_descent_burn_in_', asString(N_REP), '.trees')));
+	sim.readFromPopulationFile(paste0(c('~/Documents/SLiM_model/Burn_in/villages_unilineal_descent_burn_in_', asString(N_REP), '.trees')));
 	inds = p1.individuals;
 	nInds = size(inds);
 	
@@ -145,8 +132,10 @@ initialize() {
 		// initialize column of last common ancestor to 1 for every group
 		lastCommonAncestor.setValue(asString(i), 1);
 		
-		// individuals are randomly split into groups
-		migrants = p1.sampleIndividuals(K);
+		// individuals are randomly split into groups maintaining the sex ratio
+		migrantsF = sample(p1.individuals[p1.individuals.sex == 'F'], asInteger(K/2));
+		migrantsM = sample(p1.individuals[p1.individuals.sex == 'M'], asInteger(K/2));
+		migrants = c(migrantsF,  migrantsM);
 		
 		newPop = community.subpopulationsWithIDs(i);
 		newPop.takeMigrants(migrants);
@@ -226,8 +215,8 @@ initialize() {
 	// add markers for villages
 	for (village in villages.allKeys) {
 		ind = c();
-		for (group in villages.getValue(village)) {
-			group = sim.subpopulations[sim.subpopulations.id == group];
+		for (groupID in villages.getValue(village)) {
+			group = sim.subpopulations[sim.subpopulations.id == groupID];
 			indGroup = group.individuals[group.individuals.age == 0];
 			ind = c(ind, indGroup);
 		}
@@ -256,13 +245,11 @@ initialize() {
 	}
 	sim.setValue('depth', depth);
 	
-	sim.setValue('migrantRatioList', c());
-	
 	print("Elapsed (split groups + create villages) : " + (clock() - start));
 }
 
 1 first() {
-	filename = paste0(c('bash_Num_replicat/Sim_', asString(MF_RATIO),'_bash_Num_replicat_gen_0.trees'));
+	filename = 'bash_Num_replicat/Sim_bash_Num_replicat_gen_0.trees';
 	print(filename);
 	sim.treeSeqOutput(path = filename);
 }
@@ -291,8 +278,12 @@ first() {
 		nIndF = size(IndF); // number of females
 		nIndM = size(IndM); // number of males
 		
-		nMigrantsF = asInteger(nInd * M_RATIO * MF_RATIO);  // number of female migrants
-		nMigrantsM = asInteger(nInd * M_RATIO * (1-MF_RATIO));  // number of male migrants
+		nMigrantsF = asInteger(nIndF * MF_RATIO);  // number of female migrants
+		print("# female migrants");
+		print(nMigrantsF);
+		nMigrantsM = asInteger(nIndM * MM_RATIO);  // number of male migrants
+		print("# male migrants");
+		print(nMigrantsM);
 		migrantsF.setValue(key, sample(IndF, nMigrantsF).pedigreeID);
 		migrantsM.setValue(key, sample(IndM, nMigrantsM).pedigreeID);
 	}
@@ -322,6 +313,21 @@ first() {
 			// migration happens between groups from different villages
 			dest.takeMigrants(sim.individualsWithPedigreeIDs(migrant));
 		}
+	}
+
+	for (key in villages.allKeys) {
+		print("After migration");
+		pops = community.subpopulationsWithIDs(asInteger(villages.getValue(key)));
+		nInds = sum(pops.individualCount);
+		print(key);
+		print("# of individuals in village");
+		print(nInds);
+		nIndsM = size(pops.individuals[pops.individuals.sex == 'M']); // nb of males in the village
+		print("# of males in village");
+		print(nIndsM);
+		sexRatio = nIndsM/nInds;
+		line = paste("bash_Num_replicat", community.tick, "Migration", sexRatio);
+		writeFile(paste0(output, "sexRatio.txt"), line, append = T);
 	}
 	print("Elapsed (migration) : " + (clock() - start));
 }
@@ -370,7 +376,10 @@ reproduction(NULL, NULL) {
 		ID_2 = Dictionary();
 	}
 	
+	sMale = F;
+	
 	for (key in villages.allKeys) {
+		print(key);
 		couplesVillage = c();  // same as couples but only for the current village
 		if (RF == F) {
 			ID_village = ID.getValue(key);
@@ -380,13 +389,37 @@ reproduction(NULL, NULL) {
 		// list of individuals in the village
 		groups = villages.getValue(key);
 		inds = community.subpopulationsWithIDs(groups).individuals;
+		pop = community.subpopulationsWithIDs(groups);
 		
 		// initialize number of children done
 		nChildrenDone = 0;
 		
 		// lists of single males and females in the village
-		availableM = inds[inds.sex == 'M'];
 		availableF = inds[inds.sex == 'F'];
+		sizeF = size(availableF);
+		if (POLY == F) {
+			availableM = inds[inds.sex == 'M'];
+		}
+		else {
+			// polygyny
+			males = inds[inds.sex == 'M'];
+
+			if (supermale == T) {
+				if (sMale == F) {
+					w = c(100, rep(1, asInteger(size(males) - 1)));
+					weights = sample(w, size(males));
+					sMale = T;
+				}
+				else {
+					weights = rep(1, size(males));
+				}
+			}					
+			else {
+				//weights = rpois(size(males), 1.2);
+				weights = rgeom(size(males), 1/2);
+			}
+			availableM = sample(males, sizeF, replace = T, weights = weights);
+		}
 		
 		/// form couples ///
 		while (size(availableM) > 0 & size(availableF) > 0) {
@@ -407,7 +440,27 @@ reproduction(NULL, NULL) {
 			}
 			
 			// remove the couple from single males and females
-			availableM = setDifference(availableM, c(husband));
+			if (POLY == F) {
+				availableM = setDifference(availableM, c(husband));
+			}
+			
+			else {
+				index = which(availableM == husband)[0];
+				if (index == 0) {
+					if (size(availableM) == 1) {
+						avalaibleM = c();
+					}
+					else {
+						availableM = availableM[1:(size(availableM)-1)];
+					}
+				}
+				else if (index == size(availableM)-1) {
+					availableM = availableM[0:(size(availableM)-2)];
+				}				
+				else {
+					availableM = c(availableM[0:(index-1)], availableM[(index+1):(size(availableM)-1)]);
+				}
+			}
 			availableF = setDifference(availableF, c(wife));
 			
 			// update the list of couples in the group and initialize their number of children
@@ -547,9 +600,15 @@ reproduction(NULL, NULL) {
 						// the daughter inherits the custom ID of her mother + supplementary number corresponding to the number of the child in the family
 						ID_village_mother = ID_village[which(ID_village[,0] == mother_ID),];
 						// if mother is a migrant, give the ID of another individual in the group
+						counter = 0;
 						while (size(ID_village_mother) == 0) {
-							mother = mother.subpopulation.sampleIndividuals(1, exclude = mother);
+							mother = mother.subpopulation.sampleIndividuals(1, sex = 'F');
 							ID_village_mother = ID_village[which(ID_village[,0] == asString(mother.pedigreeID)),];
+							counter = counter + 1;
+							if (counter > size(mother.subpopulation.individuals[mother.subpopulation.individuals.sex == 'F']) -1) {
+								newMotherID = sample(ID_village[,0], 1);
+								ID_village_mother = ID_village[which(ID_village[,0] == newMotherID),];
+							}
 						}
 						value = c(ID_village_mother, mother.reproductiveOutput - 1);
 						ID_village_2 = rbind(ID_village_2, c(asString(child.pedigreeID), value[2:size(value)-1]));
@@ -559,14 +618,15 @@ reproduction(NULL, NULL) {
 						// the son inherits the custom ID of his father + supplementary number corresponding to the number of the child in the family
 						ID_village_father = ID_village[which(ID_village[,0] == father_ID),];
 						// if father is a migrant, give the ID of another individual in the group
+
 						counter = 0;
 						while (size(ID_village_father) == 0) {
-							father = father.subpopulation.sampleIndividuals(1, exclude = father);
-							ID_village_father = ID_village[which(ID_village[,0] == asString(father.pedigreeID)),];
+							newFather = father.subpopulation.sampleIndividuals(1, sex = 'M');
+							ID_village_father = ID_village[which(ID_village[,0] == asString(newFather.pedigreeID)),];
 							counter = counter + 1;
 							if (counter > size(father.subpopulation.individuals[father.subpopulation.individuals.sex == 'M']) -1) {
-								fatherID = sample(ID_village[,0], 1);
-								ID_village_father = ID_village[which(ID_village[,0] == fatherID),];
+								newFatherID = sample(ID_village[,0], 1);
+								ID_village_father = ID_village[which(ID_village[,0] == newFatherID),];
 							}
 						}
 						value = c(ID_village_father, father.reproductiveOutput - 1);
@@ -629,8 +689,14 @@ reproduction(NULL, NULL) {
 			else if (DESCENT == 'matrilineal') {
 				sizeGroup = 2*size(group.individuals[group.individuals.sex == 'F']);
 			}
-
+			line = paste("bash_Num_replicat", community.tick, key, groups[i], nChildGroup, pGroup[i], proba[i], sizeGroup);
+			//line = paste("bash_Num_replicat", community.tick, village, groups[i], nChildGroup, pGroup[i], proba[i], community.subpopulationsWithIDs(groups[i]).individualCount);
+			writeFile(paste0(output, "proba_lin.txt"), line, append = T);
 		}
+		meanR = mean(pGroup/mean(pGroup));
+		varR = var(pGroup/mean(pGroup));
+		line = paste("bash_Num_replicat", community.tick, key, meanR, varR);
+		writeFile(paste0(output, "growthRates.txt"), line, append = T);
 	}
 	
 	for (i in seq(0, size(couples[,0])-1)) {
@@ -694,23 +760,24 @@ early() {
 	}
 	growthRate = sim.getValue("growthRate");
 	depth = sim.getValue("depth");
-	migrantRatioList = sim.getValue('migrantRatioList');
+	migrantRatioList = c();
 	K_village = sim.getValue('K_village');
 	fissionTime = c();
-	
+
+	// unfriendly fission : list splitting groups and their village of origin
+	splittingGroups = c();
+	sourceVillages = c();
+
 	for (village in villages.allKeys) {
 		pops = community.subpopulationsWithIDs(asInteger(villages.getValue(village)));
+		nInds = sum(pops.individualCount);
 		nIndsM = size(pops.individuals[pops.individuals.sex == 'M']); // nb of males in the village
+		sexRatio = nIndsM/nInds;
+		line = paste("bash_Num_replicat", community.tick, "Reproduction", sexRatio);
+		writeFile(paste0(output, "sexRatio.txt"), line, append = T);
 		
 		if (RF == F) {
 			ID_village = ID.getValue(village);
-		}
-		
-		if (V == T) {
-			nGroup = size(pops);
-			nDeathsGroup = Dictionary();
-			rho = e /((nGroup - 1) * sqrt(1/(2 * nGroup) * K_village));
-			// rho = e/(nGroup-1); // higher deathRate for small groups
 		}
 		
 		for (subpop in pops) {
@@ -720,7 +787,6 @@ early() {
 			
 			// fission event if the size of the descent group is above FITH and if the last fission event is older than 3 generations
 			if (nInds >= FITH & depth.getValue(asString(subpop.id)) > 3) {
-			//if (nInds >= FITH) {
 				print("Fission !");
 				nFissions = nFissions + 1;
 				
@@ -761,10 +827,6 @@ early() {
 					// reduce the number of values in ID vector : keep only generations where there are different ancestors
 					for (id in ind.pedigreeID) {
 						ID_village_individual = ID_village[which(ID_village[,0] == id),];
-						// if ind is a migrant, it is not in ID_village
-						if (size(ID_village_individual) == 0) {
-							next;
-						}
 						new_ID = rbind(new_ID, ID_village[which(ID_village[,0] == id),]);
 					}
 					
@@ -811,8 +873,9 @@ early() {
 							nGroup2 = nGroup2 + nDescendants[index];
 						}
 					}
-					group_number = sample(c(1,2), 1);
-					if (group_number == 1) {
+										
+					// the smaller group is the new group
+					if (nGroup1 < nGroup2) {
 						newGroup = group1;
 					}
 					else {
@@ -820,6 +883,9 @@ early() {
 					}
 					migrants = sim.individualsWithPedigreeIDs(asInteger(newGroup));
 					ratio_migrants = size(migrants)/(nGroup1 + nGroup2);
+
+					line = paste("bash_Num_replicat", community.tick, ratio_migrants);
+					writeFile(paste0(output, "migrantRatio.txt"), line, append = T);
 					
 					// add individuals of opposite sex to migrants
 					companions = sample(oppositSexInd, asInteger(ratio_migrants*size(oppositSexInd)));
@@ -835,9 +901,13 @@ early() {
 				else {
 					// we draw a number of migrants
 					nInd = size(ind);
-					nMigrants = asInteger(0.5*nInd);
+					// draw the proportion of migrants in a truncated normal law of mean 0.5 and sd = 0.5
+					ratio_migrants = rnorm(1, 0.5, 0.5);
+					while (ratio_migrants < 0 | ratio_migrants > 1) {
+						ratio_migrants = rnorm(1, 0.5, 0.5);
+					}
+					nMigrants = asInteger(ratio_migrants*nInd);
 					migrants = sample(ind, nMigrants);
-					ratio_migrants = nMigrants/nInd;
 					
 					// add individuals of opposite sex to migrants
 					companions = sample(oppositSexInd, asInteger(ratio_migrants*size(oppositSexInd)));
@@ -850,35 +920,19 @@ early() {
 				group = community.subpopulationsWithIDs(counter);
 				group.takeMigrants(migrants);
 				
-				// update villages
+				randomN = runif(1, 0, 1);
+				// if fission is not friendly, the new group goes to another village with a probability pM
+				if (randomN < pM) {
+					splittingGroups = c(splittingGroups, counter);
+					sourceVillages = c(sourceVillages, village);
+				}
 				// if fission is friendly, the new group stays in the same village
-				if (FF == T) {
-					newGroup = Dictionary(village, c(counter));
-				}
-				
-				// if fission is not friendly, the new group goes to another village
 				else {
-					// sample a village
-					newVillage = sample(setDifference(villages.allKeys, village), 1);
-					
-					newGroup = Dictionary(newVillage, c(counter));
-					
-					if (RF == F) {
-						// update ID
-						ID_newVillage = ID.getValue(newVillage);
-						for (ind in asInteger(newGroup)) {
-							ID_newVillage = rbind(ID_newVillage, ID_village[which(ID_village[,0] == ind),]);
-							ID_village = ID_village[which(ID_village[,0] != ind),];
-						}
-						ID.setValue(village, ID_village);
-						ID.setValue(newVillage, ID_newVillage);
-						sim.setValue("ID", ID);
-					}
+					newGroup = Dictionary(village, c(counter));
+					// add new group to its parent village
+					villages.appendKeysAndValuesFrom(newGroup);
 				}
-				
-				// add new group to its parent or new village
-				villages.appendKeysAndValuesFrom(newGroup);
-				
+								
 				// record fission
 				fission = sim.getValue("fission");
 				source = subpop.id;
@@ -912,9 +966,145 @@ early() {
 				depth.setValue(asString(subpop.id), NULL);
 				growthRate[subpop.id - 1] = -1;
 			}
+		}
+	}
+
+	if (!isNULL(sourceVillages)) {
+		print(sourceVillages);
+		print(splittingGroups);
+		for (i in seq(0, size(sourceVillages)-1)) {
+			sourceVillages[i] = strsplit(sourceVillages[i], "V")[1];
+		}
+		sourceVillages = asInteger(sourceVillages);
+		tabSourceVillages = tabulate(sourceVillages);
+		orderedSourceVillages = order(tabSourceVillages, ascending = F);
+
+		countVillages = Dictionary();
+		positions = Dictionary();
+		pos = 0;
+
+		for (i in sourceVillages) {
+			if (tabSourceVillages[i] > 0) {
+				countVillages.setValue(asString(i), tabSourceVillages[i]);
+				positions.setValue(asString(pos), i);
+			}
+			pos = pos + 1;
+		}
+
+		sortedSourceVillages = c();
+		original_pos = c();
+
+		for (i in orderedSourceVillages) {
+			if (match(asString(i), countVillages.allKeys) < 0) {
+				next;
+			}
+			sortedSourceVillages = c(sortedSourceVillages, rep(i, countVillages.getValue(asString(i))));
+			for (p in positions.allKeys) {
+				val = positions.getValue(p);
+				if (val == i) {
+					original_pos = c(original_pos, p);
+					positions.setValue(p, NULL);
+					next;
+				}
+			}
+		}
+
+		// reorder groups
+		original_pos = asInteger(original_pos);
+		sortedSplittingGroups = sapply(original_pos, "splittingGroups[applyValue];");
+		print(sortedSplittingGroups);
+
+		// sample a village
+		originalList = sortedSourceVillages;
+		remaining_indices = seq(0, size(sortedSourceVillages)-1);
+		print(sortedSourceVillages);
+		for (i in seq(0, size(originalList)-1)) {
+			print(i);
+			original_value = originalList[i];
+			if (sortedSourceVillages[i] != original_value) {
+				next;
+			}
+			available_indices = F;
 			
-			// extinction due to violence between groups
-			if (V == T) {
+			for (j in seq(0, size(sortedSourceVillages)-1)) {
+				if (j == i) {
+					next;
+				}
+				if (sortedSourceVillages[j] != original_value & sortedSourceVillages[i] != originalList[j]) {
+					// swap values
+					sortedSourceVillages[i] = sortedSourceVillages[j];
+					sortedSourceVillages[j] = original_value;
+					remaining_indices = setDifference(remaining_indices, j);
+					remaining_indices = setDifference(remaining_indices, i);
+					available_indices = T;
+					break;
+				}
+			}
+			if (available_indices == F) {
+				sampleIndex = sample(setDifference(seq(1, 5), original_value), 1);
+				sortedSourceVillages[i] = sampleIndex;
+				sampleRemainingIndex = sample(remaining_indices, 1);
+				remaining_indices = setDifference(remaining_indices, sampleRemainingIndex);
+			}
+		}
+
+		print(sortedSourceVillages);
+		for (i in seq(0, size(sortedSplittingGroups)-1)) {
+			newVillage = paste0("V", sortedSourceVillages[i]);
+			groupID = sortedSplittingGroups[i];
+			newGroup = Dictionary(newVillage, c(groupID));
+			// add new group to its host village
+			villages.appendKeysAndValuesFrom(newGroup);
+
+			if (RF == F) {
+				// update ID
+				ID_newVillage = ID.getValue(newVillage);
+				previousVillage = paste0("V", originalList[i]);
+				print(previousVillage);
+				ID_previousVillage = ID.getValue(previousVillage);
+				for (ind in community.subpopulationsWithIDs(groupID).individuals.pedigreeID) {
+					ID_newVillage = rbind(ID_newVillage, ID_previousVillage[which(ID_previousVillage[,0] == ind),]);
+					//ID_previousVillage[which(ID_previousVillage[,0] == ind),] = NULL;
+				}
+				//ID.setValue(previousVillage, ID_previousVillage);
+				ID.setValue(newVillage, ID_newVillage);
+			}
+		}
+		if (RF == F) {
+			sim.setValue("ID", ID);
+		}	
+	}
+
+	for (village in villages.allKeys) {
+		print("After fissions");
+		pops = community.subpopulationsWithIDs(asInteger(villages.getValue(village)));
+		nInds = sum(pops.individualCount);
+		print(village);
+		print("# of individuals in village");
+		print(nInds);
+		nIndsM = size(pops.individuals[pops.individuals.sex == 'M']); // nb of males in the village
+		print("# of males in village");
+		print(nIndsM);
+		sexRatio = nIndsM/nInds;
+		line = paste("bash_Num_replicat", community.tick, "Fission", sexRatio);
+		writeFile(paste0(output, "sexRatio.txt"), line, append = T);
+	}
+
+	if (V == T) {
+		for (village in villages.allKeys) {
+			pops = community.subpopulationsWithIDs(asInteger(villages.getValue(village)));
+			nIndsM = size(pops.individuals[pops.individuals.sex == 'M']); // nb of males in the village
+		
+			nGroup = size(pops);
+			nDeathsGroup = Dictionary();
+			rho = e /((nGroup - 1) * sqrt(nIndsM/nGroup));
+		
+			for (subpop in pops) {
+				inds = subpop.individuals;
+				nMales = size(inds[inds.sex == 'M']); // nb of males in the descent group
+			
+				// extinction due to violence between groups
+
 				// kill only males
 				// condition : there are males in the group and in other groups of the village
 				if (nMales > 0 & nIndsM - nMales > 0) {
@@ -951,9 +1141,20 @@ early() {
 					}
 				}
 			}
+			print("After violence");
+			nInds = sum(pops.individualCount);
+			print(village);
+			print("# of individuals in village");
+			print(nInds);
+			nIndsM = size(pops.individuals[pops.individuals.sex == 'M']); // nb of males in the village
+			print("# of males in village");
+			print(nIndsM);
+			sexRatio = nIndsM/nInds;
+			line = paste("bash_Num_replicat", community.tick, "Violence", sexRatio);
+			writeFile(paste0(output, "sexRatio.txt"), line, append = T);
 		}
 	}
-	
+
 	/// remove unactive groups ///
 	activeGroup = sim.subpopulations[sim.subpopulations.individualCount > 0];
 	realGroup = c();
@@ -981,77 +1182,103 @@ early() {
 20001:20100	late() {
 	/// output ///
 	subpop = sim.subpopulations;
+	nIndTotal = sum(size(subpop.individuals));	
+	nGroups = size(subpop[subpop.individualCount > 0]);
 	
-	if (community.tick % 2 == 0) {
-		nIndTotal = sum(size(subpop.individuals));
-		
-		nGroups = size(subpop[subpop.individualCount > 0]);
-		
-		// Nb of fissions (cumulated)
-		nFissions = sim.getValue("nFissions");
-		
-		// Nb of extinctions (cumulated)
-		nExtinctions = sim.getValue("nExtinctions");
-		
-		mothers = sim.getValue("mothers");
-		fathers =  sim.getValue("fathers");
-		indPerGroup = size(subpop.individuals)/nGroups;
-		varIndPerGroup = var(subpop.individualCount/nGroups);
-		femalePerGroup = size(subpop.individuals[subpop.individuals.sex == 'F'])/nGroups;
-		failedCouples = sim.getValue("failedCouples");
-		singleInd = sim.getValue("%singleInd");
-		couples = sim.getValue("couples");
-		meanNbChild = mean(c(asInteger(couples[,5])));
-		varNbChild = var(c(asInteger(couples[,5])));
-		
-		// time between 2 fission events
-		fissionTime = sim.getValue("fissionTime");
-		if (size(fissionTime) > 0) {
-			meanFissionTime = mean(fissionTime);
-			varFissionTime = var(fissionTime);
-			for (i in fissionTime){
-				line = paste("bash_Num_replicat", community.tick, i);
-				writeFile(paste0(output, "fissionTime.txt"), line, append = T);
-			}
-		}
-		else {
+	// Nb of fissions (cumulated)
+	nFissions = sim.getValue("nFissions");
+	
+	// Nb of extinctions (cumulated)
+	nExtinctions = sim.getValue("nExtinctions");
+	
+	mothers = sim.getValue("mothers");
+	fathers =  sim.getValue("fathers");
+	indPerGroup = size(subpop.individuals)/nGroups;
+	varIndPerGroup = var(subpop.individualCount/nGroups);
+	femalePerGroup = size(subpop.individuals[subpop.individuals.sex == 'F'])/nGroups;
+	failedCouples = sim.getValue("failedCouples");
+	singleInd = sim.getValue("%singleInd");
+	couples = sim.getValue("couples");
+	meanNbChild = mean(c(asInteger(couples[,5])));
+	varNbChild = var(c(asInteger(couples[,5])));
+	
+	// time between 2 fission events
+	fissionTime = sim.getValue("fissionTime");
+	if (size(fissionTime) > 0) {
+		meanFissionTime = mean(fissionTime);
+		if (isNULL(meanFissionTime)) {
 			meanFissionTime = NAN;
+		}
+		varFissionTime = var(fissionTime);
+		if (isNULL(varFissionTime)) {
 			varFissionTime = NAN;
 		}
-		
-		if (RF == F) {
-			groupDepth = sim.getValue("groupDepth");
-			if (isNULL(groupDepth)) {
-				meanDepth = NAN;
-				varDepth = NAN;
-			}
-			else {
-				meanDepth = mean(groupDepth);
-				varDepth = var(groupDepth);
-				for (d in groupDepth){
-					line = paste("bash_Num_replicat", community.tick, d);
-					writeFile(paste0(output, "groupDepth.txt"), line, append = T);
-				}
-			}
+		for (i in fissionTime){
+			line = paste("bash_Num_replicat", community.tick, i);
+			writeFile(paste0(output, "fissionTime.txt"), line, append = T);
 		}
-		else {
+	}
+	else {
+		meanFissionTime = NAN;
+		varFissionTime = NAN;
+	}
+	
+	if (RF == F) {
+		groupDepth = sim.getValue("groupDepth");
+		if (isNULL(groupDepth)) {
 			meanDepth = NAN;
 			varDepth = NAN;
 		}
-		
-		migrantRatioList = sim.getValue('migrantRatioList');
-		if (size(migrantRatioList) == 0) {
+		else {
+			meanDepth = mean(groupDepth);
+			if (isNULL(meanDepth)) {
+				meanDepth = NAN;
+			}
+			varDepth = var(groupDepth);
+			if (isNULL(meanDepth)) {
+				varDepth = NAN;
+			}
+			for (d in groupDepth){
+				line = paste("bash_Num_replicat", community.tick, d);
+				writeFile(paste0(output, "groupDepth.txt"), line, append = T);
+			}
+		}
+	}
+	else {
+		meanDepth = NAN;
+		varDepth = NAN;
+	}
+	
+	migrantRatioList = sim.getValue('migrantRatioList');
+	if (size(migrantRatioList) == 0) {
+		meanRatioMigrants = NAN;
+		varRatioMigrants = NAN;
+	}
+	else {
+		meanRatioMigrants = mean(migrantRatioList);
+		if (isNULL(meanRatioMigrants)) {
 			meanRatioMigrants = NAN;
+		}
+		varRatioMigrants = var(migrantRatioList);
+		if (isNULL(varRatioMigrants)) {
 			varRatioMigrants = NAN;
 		}
-		else {
-			meanRatioMigrants = mean(migrantRatioList);
-			varRatioMigrants = var(migrantRatioList);
-		}
-		
-		line = paste("bash_Num_replicat", community.tick, nIndTotal, nFissions, nExtinctions, nGroups, fathers, indPerGroup, varIndPerGroup, femalePerGroup, mothers, failedCouples, singleInd, meanNbChild, varNbChild, meanDepth, varDepth, meanRatioMigrants, varRatioMigrants, meanFissionTime, varFissionTime);
-		writeFile(paste0(output, "metrics.txt"), line, append = T);
 	}
+	
+	line = paste("bash_Num_replicat", community.tick, nIndTotal, nFissions, nExtinctions, nGroups, fathers, indPerGroup, varIndPerGroup, femalePerGroup, mothers, failedCouples, singleInd, meanNbChild, varNbChild, meanDepth, varDepth, meanRatioMigrants, varRatioMigrants, meanFissionTime, varFissionTime);
+	writeFile(paste0(output, "metrics.txt"), line, append = T);
+
+	// sex ratio
+	villages = sim.getValue("villages");
+	for (village in villages.allKeys) {
+		pops = community.subpopulationsWithIDs(asInteger(villages.getValue(village)));
+		nInds = sum(pops.individualCount);
+		nIndsM = size(pops.individuals[pops.individuals.sex == 'M']); // nb of males in the village
+		sexRatio = nIndsM/nInds;
+		line = paste("bash_Num_replicat", community.tick, "Late", sexRatio);
+		writeFile(paste0(output, "sexRatio.txt"), line, append = T);
+	}
+
 }
 
 
@@ -1082,7 +1309,7 @@ early() {
 		}
 	}
 	
-	filename = paste0(c('bash_Num_replicat/Sim_', asString(MF_RATIO),'_bash_Num_replicat_gen_20.trees'));
+	filename = 'bash_Num_replicat/Sim_bash_Num_replicat_gen_20.trees';
 	print(filename);
 	sim.treeSeqOutput(path = filename);
 }
@@ -1093,8 +1320,8 @@ early() {
 	// add markers for villages
 	for (village in villages.allKeys) {
 		ind = c();
-		for (group in villages.getValue(village)) {
-			group = sim.subpopulations[sim.subpopulations.id == group];
+		for (groupID in villages.getValue(village)) {
+			group = sim.subpopulations[sim.subpopulations.id == groupID];
 			indGroup = group.individuals[group.individuals.age == 0];
 			ind = c(ind, indGroup);		}
 		if (village == 'V1') {
@@ -1114,19 +1341,19 @@ early() {
 		}
 	}
 	
-	filename = paste0(c('bash_Num_replicat/Sim_', asString(MF_RATIO),'_bash_Num_replicat_gen_40.trees'));
+	filename = 'bash_Num_replicat/Sim_bash_Num_replicat_gen_40.trees';
 	print(filename);
 	sim.treeSeqOutput(path = filename);
 }
 
-20060	late() {
+20060 late() {
 	villages = sim.getValue("villages");
 	
 	// add markers for villages
 	for (village in villages.allKeys) {
 		ind = c();
-		for (group in villages.getValue(village)) {
-			group = sim.subpopulations[sim.subpopulations.id == group];
+		for (groupID in villages.getValue(village)) {
+			group = sim.subpopulations[sim.subpopulations.id == groupID];
 			indGroup = group.individuals[group.individuals.age == 0];
 			ind = c(ind, indGroup);		}
 		if (village == 'V1') {
@@ -1146,7 +1373,7 @@ early() {
 		}
 	}
 	
-	filename = paste0(c('bash_Num_replicat/Sim_', asString(MF_RATIO),'_bash_Num_replicat_gen_60.trees'));
+	filename = 'bash_Num_replicat/Sim_bash_Num_replicat_gen_60.trees';
 	print(filename);
 	sim.treeSeqOutput(path = filename);
 }
@@ -1157,8 +1384,8 @@ early() {
 	// add markers for villages
 	for (village in villages.allKeys) {
 		ind = c();
-		for (group in villages.getValue(village)) {
-			group = sim.subpopulations[sim.subpopulations.id == group];
+		for (groupID in villages.getValue(village)) {
+			group = sim.subpopulations[sim.subpopulations.id == groupID];
 			indGroup = group.individuals[group.individuals.age == 0];
 			ind = c(ind, indGroup);		}
 		if (village == 'V1') {
@@ -1178,7 +1405,7 @@ early() {
 		}
 	}
 	
-	filename = paste0(c('bash_Num_replicat/Sim_', asString(MF_RATIO),'_bash_Num_replicat_gen_80.trees'));
+	filename = 'bash_Num_replicat/Sim_bash_Num_replicat_gen_80.trees';
 	print(filename);
 	sim.treeSeqOutput(path = filename);
 }
@@ -1189,8 +1416,8 @@ early() {
 	// add markers for villages
 	for (village in villages.allKeys) {
 		ind = c();
-		for (group in villages.getValue(village)) {
-			group = sim.subpopulations[sim.subpopulations.id == group];
+		for (groupID in villages.getValue(village)) {
+			group = sim.subpopulations[sim.subpopulations.id == groupID];
 			indGroup = group.individuals[group.individuals.age == 0];
 			ind = c(ind, indGroup);		}
 		if (village == 'V1') {
@@ -1210,20 +1437,19 @@ early() {
 		}
 	}
 	
-	filename = paste0(c('bash_Num_replicat/Sim_', asString(MF_RATIO),'_bash_Num_replicat_gen_100.trees'));
+	filename = 'bash_Num_replicat/Sim_bash_Num_replicat_gen_100.trees';
 	print(filename);
 	sim.treeSeqOutput(path = filename);
 }
 
-/*
-20150 late() {
+/*20200 late() {
 	villages = sim.getValue("villages");
 	
 	// add markers for villages
 	for (village in villages.allKeys) {
 		ind = c();
-		for (group in villages.getValue(village)) {
-			group = sim.subpopulations[sim.subpopulations.id == group];
+		for (groupID in villages.getValue(village)) {
+			group = sim.subpopulations[sim.subpopulations.id == groupID];
 			indGroup = group.individuals[group.individuals.age == 0];
 			ind = c(ind, indGroup);		}
 		if (village == 'V1') {
@@ -1243,8 +1469,7 @@ early() {
 		}
 	}
 	
-	filename = paste0(c('bash_Num_replicat/Sim_', asString(MF_RATIO),'_bash_Num_replicat_gen_150.trees'));
+	filename = 'bash_Num_replicat/Sim_bash_Num_replicat_gen_200.trees';
 	print(filename);
 	sim.treeSeqOutput(path = filename);
-}
-/*
+}*/
