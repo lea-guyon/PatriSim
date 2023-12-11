@@ -7,27 +7,30 @@ STARTTIME=$(date +%s)
 #############################
 
 dir=~ # path
+burnin=true  # run the burnin (need to be run only once)
 
 chr_size="c(1e6, 1e6, 1e4)"
 random_fission=false # true or false
 transmission="full" # "full" or "half"
-fission_threshold=100
-friendlyFission="T" # "T" or "F"
+fission_threshold=150
+pM=1  # probability for a group to move to another village after a split
 violence=false # true or false
 descent="unilineal" # "unilineal" or "bilateral"
 descent_rule="patrilineal" # "patrilineal" or "matrilineal"
 residence_rule="patrilocal" # "patrilocal" or "matrilocal"
 nb_villages=5
 nb_groups=3 # nb of descent groups -> does not make sense for bilateral descent but usefull to normalize villages' sizes
-K=100 # carrying capacity per lineage
+K=100 # carrying capacity per group
 polygyny="F" # "F" or "T"
+supermale="F" # "F" or "T"
 declare -i K_total=$nb_villages*$nb_groups*$K # total carrying capacity
 
 ########## EXTINCTION RATE IN CASE OF VIOLENCE ###########
 e=0.15
 ##########################################################
 
-migration_rate=0.05
+mf=0.1  # female migration rate
+mm=0.02  # male migration rate
 sigma=0.1 # variance of the normal law used to draw growth rates
 growth_rate=0.01 # growth rate of villages and outgroup, if 0 : population has a constant size
 sample_size=20
@@ -78,29 +81,32 @@ cd simulations/$path/$nameDir/
 ## Replace parameters in the slim file ##
 
 if [ "$descent" = "bilateral" ]; then
-	cat $dir/SLiM_models/bilateral_descent.slim | sed "s/bash_Num_villages/${nb_villages}/g;s/bash_chr_size/${chr_size}/g;s/bash_migration_rate/${migration_rate}/g;s/bash_residence/${residence_rule}/g;s/bash_growth_rate/${growth_rate}/g;s/bash_namedir/${nameDir}/g;s/bash_polygyny/${polygyny}/g" > "islandmodel.slim"
+	cat $dir/SLiM_models/bilateral_descent.slim | sed "s/bash_Num_villages/${nb_villages}/g;s/bash_chr_size/${chr_size}/g;s/bash_mf_ratio/${mf}/g;s/bash_mm_ratio/${mm}/g;s/bash_residence/${residence_rule}/g;s/bash_growth_rate/${growth_rate}/g;s/bash_namedir/${nameDir}/g;s/bash_polygyny/${polygyny}/g;s/bash_supermale/${supermale}/g" > "islandmodel.slim"
 else
-    cat $dir/SLiM_models/unilineal_descent.slim | sed "s/bash_Num_villages/${nb_villages}/g;s/bash_carrying_capacity/${K}/g;s/bash_chr_size/${chr_size}/g;s/bash_random_fission/${rf}/g;s/bash_fission_threshold/${fission_threshold}/g;s/bash_friendly_fission/${friendlyFission}/g;s/bash_violence/${vl}/g;s/bash_extinction_rate/${e}/g;s/bash_migration_rate/${migration_rate}/g;s/bash_descent_rule/${descent_rule}/g;s/bash_residence_rule/${residence_rule}/g;s/bash_sigma/${sigma}/g;s/bash_growth_rate/${growth_rate}/g;s/bash_transmission/${transmission}/g;s/bash_namedir/${nameDir}/g" > "islandmodel.slim"
+    cat $dir/SLiM_models/unilineal_descent.slim | sed "s/bash_Num_villages/${nb_villages}/g;s/bash_carrying_capacity/${K}/g;s/bash_chr_size/${chr_size}/g;s/bash_random_fission/${rf}/g;s/bash_fission_threshold/${fission_threshold}/g;s/bash_pM/${pM}/g;s/bash_violence/${vl}/g;s/bash_extinction_rate/${e}/g;s/bash_mf_ratio/${mf}/g;s/bash_mm_ratio/${mm}/g;s/bash_descent_rule/${descent_rule}/g;s/bash_sigma/${sigma}/g;s/bash_growth_rate/${growth_rate}/g;s/bash_transmission/${transmission}/g;s/bash_namedir/${nameDir}/g;s/bash_polygyny/${polygyny}/g;s/bash_supermale/${supermale}/g" > "islandmodel.slim"
 fi
 
 ## Create a new file for each simulation ##
-echo "burnin"
 for i in $(seq 1 1 $nbsimu)
 do	
 	mkdir $dir/simulations/$path/$nameDir/$i
-	cd $dir/simulations/$path/$nameDir/$i
+done
 
-	# comment to skip burn-in simulation
-	cat $dir/SLiM_models/burnin.slim | sed "s/bash_Num_villages/${nb_villages}/g;s/bash_nGroupsPerVillage/${nb_groups}/g;s/bash_total_carrying_capacity/${K_total}/g;s/bash_carrying_capacity/${K}/g;s/bash_chr_size/${chr_size}/g;s/bash_descent/${descent}/g;s/bash_Num_replicat/${i}/g" > "burnin_${i}.slim"
-	echo "slim $i/burnin_${i}.slim"
-	cd ..
-done > launcher.txt
-parallel -a launcher.txt -j $cores
+cd $dir/simulations/$path/$nameDir/
+if $burnin; then
+	echo "burnin"
+	for i in $(seq 1 1 $nbsimu)
+	do	
+		cd $dir/simulations/$path/$nameDir/$i
+		cat $dir/SLiM_scripts/burnin.slim | sed "s/bash_Num_villages/${nb_villages}/g;s/bash_Num_lin_per_v/${nb_lin}/g;s/bash_total_carrying_capacity/${K_total}/g;s/bash_carrying_capacity/${K}/g;s/bash_chr_size/${chr_size}/g;s/bash_descent/${descent}/g;s/bash_Num_replicat/${i}/g" > "burnin_${i}.slim"
+		echo "slim $i/burnin_${i}.slim"
+		cd ..
+	done > launcher.txt
+	parallel -a launcher.txt -j $cores
+fi
 
-## Run simulations ##
-echo "run simulations"
+echo "SLiM simulations"
 cd $dir/simulations/$path/$nameDir
-
 for i in $(seq 1 1 $nbsimu)
 do
 	cd $dir/simulations/$path/$nameDir/$i
@@ -163,42 +169,45 @@ echo "write .nex files"
 STARTTIME3=$(date +%s)
 
 cd $dir/BEAST/$descent/regular/
-rm -rf $dir/BEAST/$descent/regular/r=$growth_rate/$nameDir
-mkdir -p $dir/BEAST/$descent/regular/r=$growth_rate/$nameDir
+rm -rf $dir/BEAST/$path/$nameDir
+mkdir -p $dir/BEAST/$path/$nameDir
 
 for i in $(seq 1 1 $nbsimu)
 do	
-	mkdir $dir/BEAST/$descent/regular/r=$growth_rate/$nameDir/$i
+	mkdir $dir/BEAST/$path/$nameDir/$i
 done
 
-
+echo "Generate .nex files"
 for i in $(seq 1 1 $nbsimu)
 do
 	if [ "$descent" = "bilateral" ]; then
-        echo "python $dir/Python_scripts/write_nexus_bilateral.py -s $dir/simulations/$path/$nameDir/ -rep $i --sample-size 50 -K $K_total -gen 100 -o $dir/BEAST/$descent/regular/r=$growth_rate/$nameDir/$i/ -t $dir/Tables/metrics/$path/$nameDir/ > $dir/simulations/$path/$nameDir/$i/outputPyNex${i}.txt"
+        echo "python $dir/Python_scripts/write_nexus_bilateral.py -s $dir/simulations/$path/$nameDir/ -rep $i --sample-size 20 -K $K_total -gen 100 -o $dir/BEAST/$path/$nameDir/$i/ -t $dir/Tables/metrics/$path/$nameDir/ > $dir/simulations/$path/$nameDir/$i/outputPyNex${i}.txt"
 	else
-		echo "python $dir/Python_scripts/write_nexus.py -s $dir/simulations/$path/$nameDir/ -rep $i --sample-size 50 -K $K_total -gen 100 -o $dir/BEAST/$descent/regular/r=$growth_rate/$nameDir/$i/ > $dir/simulations/$path/$nameDir/$i/outputPyNex${i}.txt"
+		echo "python $dir/Python_scripts/write_nexus.py -s $dir/simulations/$path/$nameDir/ -rep $i --sample-size 20 -K $K_total -gen 100 -o $dir/BEAST/$path/$nameDir/$i/ > $dir/simulations/$path/$nameDir/$i/outputPyNex${i}.txt"
 	fi
 done > launcher.txt
 parallel -a launcher.txt -j $cores
 
 cd $dir/BEAST/
 # transform nexus
+echo "Transform .nex files"
 for i in $(seq 1 1 $nbsimu)
 do
-	echo "bash transform_nexus.txt -d $dir -D $descent -t regular -r ${growth_rate} -n $nameDir -R ${i} -g 100"
+	echo "bash transform_nexus.txt -d $dir -p $path -n $nameDir -R ${i} -g 100"
 done > launcher.txt
 parallel -a launcher.txt -j $cores
 
+cd $dir/BEAST/
+echo "Generate .xml files"
 # create xml file
 for i in $(seq 1 1 $nbsimu)
 do
-	echo "beastgen template_Mito.xml $descent/regular/r=$growth_rate/$nameDir/$i/Sim_Mito.nex $descent/regular/r=$growth_rate/$nameDir/$i/Sim_Mito.xml"
-	echo "beastgen template_Y.xml $descent/regular/r=$growth_rate/$nameDir/$i/Sim_Y.nex $descent/regular/r=$growth_rate/$nameDir/$i/Sim_Y.xml"
+	echo "beastgen template_Mito.xml $path/$nameDir/$i/Sim_Mito.nex $path/$nameDir/$i/Sim_Mito.xml"
+	echo "beastgen template_Y.xml $path/$nameDir/$i/Sim_Y.nex $path/$nameDir/$i/Sim_Y.xml"
 done > launcher.txt
 parallel -a launcher.txt -j $cores
 
-cd $dir/BEAST/$descent/regular/r=$growth_rate/$nameDir/
+cd $dir/BEAST/$path/$nameDir/
 
 # beast inference
 echo "bayesian inference"
@@ -208,6 +217,22 @@ do
 	echo "beast -working -beagle_scaling always -overwrite $i/Sim_Y.xml"
 done > launcher.txt
 parallel -a launcher.txt -j $cores
+
+echo "Generate Skyline Plots"
+for i in $(seq 1 1 $nbsimu)
+do
+	echo "Rscript $dir/R_scripts/skyline_plots.R '$dir/BEAST/$path/$nameDir/$i/'"
+done > launcher.txt
+parallel -a launcher.txt -j $cores
+
+# Remove intermediate files
+cd $dir/BEAST/$path/$nameDir/
+for i in $(seq 1 1 $nbsimu)
+do
+	cd $i
+	rm -v !(skyline*)
+	cd $dir/BEAST/$path/$nameDir/
+done
 
 ENDTIME=$(date +%s)
 echo "It takes $(($ENDTIME - $STARTTIME3)) seconds to complete this task"
