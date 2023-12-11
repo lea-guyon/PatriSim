@@ -164,7 +164,7 @@ reproduction(NULL, NULL) {
 		}
 		
 		// make child	
-		child = pop.addCrossed(mother, father, sex = sex);	
+		child = p1.addCrossed(mother, father, sex = sex);	
 		wrongSex = F;
 		
 		// females should not have a Y and have a mt and males should have a Y and not a mt
@@ -310,11 +310,11 @@ early() {
 			writeFile(output_patri, paste(drop(patriDic[row,]), sep = " "), append = T);
 		}
 		
-		filename = paste(c('~/Documents/SLiM_model/Burn_in/outgroup_villages_unilineal_descent_burn_in_', asString(N_REP), '.trees'), sep = "");
+		filename = paste(c('~/Documents/SLiM_model/Burn_in/villages_unilineal_descent_burn_in_', asString(N_REP), '.trees'), sep = "");
 	}
 	
 	else {
-		filename = paste(c('~/Documents/SLiM_model/Burn_in/outgroup_villages_bilateral_descent_burn_in_', asString(N_REP), '.trees'), sep = "");
+		filename = paste(c('~/Documents/SLiM_model/Burn_in/villages_bilateral_descent_burn_in_', asString(N_REP), '.trees'), sep = "");
 	}
 	
 	// output tree sequences

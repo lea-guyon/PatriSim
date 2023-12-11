@@ -2,9 +2,5 @@ tskit==0.5.4
 msprime==1.2.0
 pyslim==1.0.1
 numpy==1.23.2
-os
-glob
+glob2
 argparse
-re
-random
-warnings
