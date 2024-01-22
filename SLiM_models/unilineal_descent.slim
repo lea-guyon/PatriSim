@@ -326,7 +326,7 @@ first() {
 		print("# of males in village");
 		print(nIndsM);
 		sexRatio = nIndsM/nInds;
-		line = paste("bash_Num_replicat", community.tick, "Migration", sexRatio);
+		line = paste("bash_Num_replicat", community.tick, "Migration", nIndsM, nInds, sexRatio);
 		writeFile(paste0(output, "sexRatio.txt"), line, append = T);
 	}
 	print("Elapsed (migration) : " + (clock() - start));
@@ -773,7 +773,7 @@ early() {
 		nInds = sum(pops.individualCount);
 		nIndsM = size(pops.individuals[pops.individuals.sex == 'M']); // nb of males in the village
 		sexRatio = nIndsM/nInds;
-		line = paste("bash_Num_replicat", community.tick, "Reproduction", sexRatio);
+		line = paste("bash_Num_replicat", community.tick, "Reproduction", nIndsM, nInds sexRatio);
 		writeFile(paste0(output, "sexRatio.txt"), line, append = T);
 		
 		if (RF == F) {
@@ -905,6 +905,10 @@ early() {
 					ratio_migrants = rnorm(1, 0.5, 0.5);
 					while (ratio_migrants < 0 | ratio_migrants > 1) {
 						ratio_migrants = rnorm(1, 0.5, 0.5);
+					}
+					// the smaller group is the new group
+					if (ratio_migrants > 0.5) {
+						ratio_migrants = 1 - ratio_migrants;
 					}
 					nMigrants = asInteger(ratio_migrants*nInd);
 					migrants = sample(ind, nMigrants);
@@ -1086,7 +1090,7 @@ early() {
 		print("# of males in village");
 		print(nIndsM);
 		sexRatio = nIndsM/nInds;
-		line = paste("bash_Num_replicat", community.tick, "Fission", sexRatio);
+		line = paste("bash_Num_replicat", community.tick, "Fission", nIndsM, nInds, sexRatio);
 		writeFile(paste0(output, "sexRatio.txt"), line, append = T);
 	}
 
@@ -1097,7 +1101,12 @@ early() {
 		
 			nGroup = size(pops);
 			nDeathsGroup = Dictionary();
-			rho = e /((nGroup - 1) * sqrt(nIndsM/nGroup));
+			if (nGroup == 1) {
+				rho = e*nIndsM;
+			}
+			else {
+				rho = (e*100) / ((nIndsM - nIndsM/nGroup) * sqrt(nIndsM));
+			}
 		
 			for (subpop in pops) {
 				inds = subpop.individuals;
@@ -1150,7 +1159,7 @@ early() {
 			print("# of males in village");
 			print(nIndsM);
 			sexRatio = nIndsM/nInds;
-			line = paste("bash_Num_replicat", community.tick, "Violence", sexRatio);
+			line = paste("bash_Num_replicat", community.tick, "Violence", nIndsM, nInds, sexRatio);
 			writeFile(paste0(output, "sexRatio.txt"), line, append = T);
 		}
 	}
@@ -1275,7 +1284,7 @@ early() {
 		nInds = sum(pops.individualCount);
 		nIndsM = size(pops.individuals[pops.individuals.sex == 'M']); // nb of males in the village
 		sexRatio = nIndsM/nInds;
-		line = paste("bash_Num_replicat", community.tick, "Late", sexRatio);
+		line = paste("bash_Num_replicat", community.tick, "Late", nIndsM, nInds, sexRatio);
 		writeFile(paste0(output, "sexRatio.txt"), line, append = T);
 	}
 
@@ -1288,8 +1297,8 @@ early() {
 	// add markers for villages
 	for (village in villages.allKeys) {
 		ind = c();
-		for (group in villages.getValue(village)) {
-			group = sim.subpopulations[sim.subpopulations.id == group];
+		for (groupID in villages.getValue(village)) {
+			group = sim.subpopulations[sim.subpopulations.id == groupID];
 			indGroup = group.individuals[group.individuals.age == 0];
 			ind = c(ind, indGroup);		}
 		if (village == 'V1') {
