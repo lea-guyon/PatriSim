@@ -13,11 +13,10 @@ chr_size="c(1e6, 1e6, 1e4)"
 random_fission=false # true or false
 transmission="full" # "full" or "half"
 fission_threshold=150
-pM=1  # probability for a group to move to another village after a split
+pM=0  # probability for a group to move to another village after a split
 violence=false # true or false
 descent="unilineal" # "unilineal" or "bilateral"
 descent_rule="patrilineal" # "patrilineal" or "matrilineal"
-residence_rule="patrilocal" # "patrilocal" or "matrilocal"
 nb_villages=5
 nb_groups=3 # nb of descent groups -> does not make sense for bilateral descent but usefull to normalize villages' sizes
 K=100 # carrying capacity per group
@@ -30,7 +29,7 @@ e=0.15
 ##########################################################
 
 mf=0.1  # female migration rate
-mm=0.02  # male migration rate
+mm=0  # male migration rate
 sigma=0.1 # variance of the normal law used to draw growth rates
 growth_rate=0.01 # growth rate of villages and outgroup, if 0 : population has a constant size
 sample_size=20
@@ -61,7 +60,7 @@ if [ "$descent" = "bilateral" ]; then
 	path=$descent/regular/r=$growth_rate
 	rm -rf $dir/Tables/metrics/$path/$nameDir
 	mkdir -p $dir/Tables/metrics/$path/$nameDir
-	echo "'Replicat'	'Generation'	'mean_nb_children_per_couple'	'var_nb_children_per_couple'	'fathers'	'mothers' 'singleInd'" > $dir/Tables/metrics/$path/$nameDir/metrics.txt
+	echo "'Replicat'	'Generation'	'mean_nb_children_per_couple'	'var_nb_children_per_couple'	'mothers'	'fathers' 'singleInd'	'polyFemales'	'polyMales'	'monoMales'	'singleMales'	'meanChildrenPerMale'	'varChildrenPerMale'	'maxChildrenM'	'meanChildrenPerFemale'	'varChildrenPerFemale'	'maxChildrenF'" > $dir/Tables/metrics/$path/$nameDir/metrics.txt
 else
 	if [ $vl = "T" ]; then
 		path=$descent/regular/r=$growth_rate/sigma=$sigma/FT=$fission_threshold/e=$e
@@ -81,7 +80,7 @@ cd simulations/$path/$nameDir/
 ## Replace parameters in the slim file ##
 
 if [ "$descent" = "bilateral" ]; then
-	cat $dir/SLiM_models/bilateral_descent.slim | sed "s/bash_Num_villages/${nb_villages}/g;s/bash_chr_size/${chr_size}/g;s/bash_mf_ratio/${mf}/g;s/bash_mm_ratio/${mm}/g;s/bash_residence/${residence_rule}/g;s/bash_growth_rate/${growth_rate}/g;s/bash_namedir/${nameDir}/g;s/bash_polygyny/${polygyny}/g;s/bash_supermale/${supermale}/g" > "islandmodel.slim"
+	cat $dir/SLiM_models/bilateral_descent.slim | sed "s/bash_Num_villages/${nb_villages}/g;s/bash_chr_size/${chr_size}/g;s/bash_mf_ratio/${mf}/g;s/bash_mm_ratio/${mm}/g;s/bash_growth_rate/${growth_rate}/g;s/bash_namedir/${nameDir}/g;s/bash_polygyny/${polygyny}/g;s/bash_supermale/${supermale}/g" > "islandmodel.slim"
 else
     cat $dir/SLiM_models/unilineal_descent.slim | sed "s/bash_Num_villages/${nb_villages}/g;s/bash_carrying_capacity/${K}/g;s/bash_chr_size/${chr_size}/g;s/bash_random_fission/${rf}/g;s/bash_fission_threshold/${fission_threshold}/g;s/bash_pM/${pM}/g;s/bash_violence/${vl}/g;s/bash_extinction_rate/${e}/g;s/bash_mf_ratio/${mf}/g;s/bash_mm_ratio/${mm}/g;s/bash_descent_rule/${descent_rule}/g;s/bash_sigma/${sigma}/g;s/bash_growth_rate/${growth_rate}/g;s/bash_transmission/${transmission}/g;s/bash_namedir/${nameDir}/g;s/bash_polygyny/${polygyny}/g;s/bash_supermale/${supermale}/g" > "islandmodel.slim"
 fi
