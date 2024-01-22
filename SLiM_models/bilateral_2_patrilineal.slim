@@ -1,0 +1,1387 @@
+initialize() {
+	initializeSLiMModelType("nonWF");
+	
+	// record pedigrees
+	initializeSLiMOptions(keepPedigrees = T);
+	
+	// output tree sequences
+	initializeTreeSeq();
+	
+	// set mutation rate to 0
+	// mutations will be added during the processing of the tree sequences
+	initializeMutationRate(0);
+	
+	initializeSex("A");
+	
+	// number of villages
+	defineConstant("N_VILLAGES", bash_Num_villages);
+	
+	// carrying capacity
+	defineConstant("K", bash_carrying_capacity);
+	
+	// number of replicates
+	defineConstant("N_REP", bash_Num_replicat);
+	
+	// chromosome sizes
+	defineConstant("CHR_SIZE", bash_chr_size);
+	
+	// random fission
+	defineConstant("RF", bash_random_fission);
+	
+	// fission threshold
+	defineConstant("FITH", bash_fission_threshold);
+
+	// probability for a descent group to move to another village after a split
+	defineConstant("pM", bash_pM);
+	
+	// violence
+	defineConstant("V", bash_violence);
+	
+	// extinction rate
+	defineConstant("e", bash_extinction_rate);
+	
+	// descent rule
+	defineConstant("DESCENT", "bash_descent_rule");
+	
+	// first residence rule
+	defineConstant("RES1", "bash_residence_rule_1");
+
+	// second residence rule
+	defineConstant("RES2", "bash_residence_rule_2");
+	
+	// variance of the normal law used to draw growth rates
+	defineConstant("sigma", bash_sigma);
+	
+	// growth rate
+	defineConstant("R", bash_growth_rate);
+	
+	// transmission of growth rate to the new group
+	defineConstant("TM", "bash_transmission");
+	
+	// mark groups
+	defineConstant("LIN", bash_lin_mark);
+	
+	// output folder
+	defineConstant("nameDir", "bash_namedir");
+	
+	// set neutral mutations and convert to substitution
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	initializeMutationType("m2", 1.0, "f", 0.0); // Y marker
+	initializeMutationType("m3", 1.0, "f", 0.0); // mt marker
+	
+	initializeMutationType("m4", 1.0, "f", 0.0); // village 1 marker
+	initializeMutationType("m5", 1.0, "f", 0.0); // village 2 marker
+	initializeMutationType("m6", 1.0, "f", 0.0); // village 3 marker	
+	initializeMutationType("m7", 1.0, "f", 0.0); // village 4 marker	
+	initializeMutationType("m8", 1.0, "f", 0.0); // village 5 marker	
+	
+	if (LIN) {
+		for (i in 11:31) {
+			initializeMutationType(paste0("m", asString(i)), 1.0, "f", 0.0); // group marker
+		}
+	}
+	
+	initializeGenomicElementType("g1", m1, 1.0);
+	
+	defineConstant("UpperA", CHR_SIZE[0]);  // upper boundary for autosomes	
+	defineConstant("LowerXY", CHR_SIZE[0] + 1);  // lower boundary for X/Y chromosomes
+	defineConstant("UpperXY", CHR_SIZE[0] + CHR_SIZE[1] + 2);  // upper boundary for X/Y chromosomes	
+	defineConstant("LowerMt", CHR_SIZE[0] + CHR_SIZE[1] + 3);  // lower boundary for mtDNA
+	defineConstant("UpperMt", CHR_SIZE[0] + CHR_SIZE[1] + CHR_SIZE[2] + 4);  // upper boundary for mtDNA
+	
+	initializeGenomicElement(g1, 0, UpperMt);
+	
+	// recombination rate is set to 0 for Y chromosome and mtDNA
+	initializeRecombinationRate(c(1.1e-8, 0.5, 0, 0.5, 1e-8), c(UpperA, LowerXY, UpperXY, LowerMt, UpperMt), sex='M');
+	initializeRecombinationRate(c(1.1e-8, 0.5, 1e-8, 0.5, 0), c(UpperA, LowerXY, UpperXY, LowerMt, UpperMt), sex='F');
+	
+	if (V == F) {
+		defineConstant("output", paste0("~/Documents/SLiM_model/Tables/Simulations_metrics/unilineal/extended/r=", R, '/sigma=', sigma, '/FT=', FITH, '/',  nameDir, "/"));
+	}
+	else
+		defineConstant("output", paste0("~/Documents/SLiM_model/Tables/Simulations_metrics/unilineal/extended/r=", R, '/sigma=', sigma, '/FT=', FITH, '/',  '/e=', e, '/', nameDir, "/"));
+}
+
+1 first() {
+	start = clock();
+	
+	// load the burn-in simulation
+	suppressWarnings(T);
+	sim.readFromPopulationFile(paste0(c('~/Documents/SLiM_model/Burn_in/villages_unilineal_descent_burn_in_', asString(N_REP), '.trees')));
+	inds = p1.individuals;
+	nInds = size(inds);
+	
+	// load ancestors array
+	if (RF == F) {
+		if (DESCENT == 'patrilineal') {
+			ID_temp = readFile(paste0(c('~/Documents/SLiM_model/Burn_in/patrilineal_ID_', asString(N_REP), '.txt')));
+		}
+		else {
+			ID_temp = readFile(paste0(c('~/Documents/SLiM_model/Burn_in/matrilineal_ID_', asString(N_REP), '.txt')));
+		}
+		ID_temp = array(ID_temp, c(size(ID_temp), 1));
+		ID = NULL;
+		for (i in seq(0, nrow(ID_temp)-1)) {
+			ID = rbind(ID, asInteger(strsplit(ID_temp[i,])));
+		}
+	}
+	
+	// split panmictic population into N groups
+	N = integerDiv(nInds, K);
+	
+	// dictionary associating the group number with the column number of the last common ancestor in ID
+	lastCommonAncestor = Dictionary();
+	lastCommonAncestor.setValue("1", 1);
+	
+	for (i in 2:N) {
+		// initialize column of last common ancestor to 1 for every group
+		lastCommonAncestor.setValue(asString(i), 1);
+		
+		// individuals are randomly split into groups maintaining the sex ratio
+		migrantsF = sample(p1.individuals[p1.individuals.sex == 'F'], asInteger(K/2));
+		migrantsM = sample(p1.individuals[p1.individuals.sex == 'M'], asInteger(K/2));
+		migrants = c(migrantsF,  migrantsM);
+		
+		newPop = community.subpopulationsWithIDs(i);
+		newPop.takeMigrants(migrants);
+		
+		// marker on groups
+		if (LIN) {
+			mut = 10 + i;
+			inds = migrants;
+			indsM = inds[inds.sex == 'M'];
+			indsF = inds[inds.sex == 'F'];
+			if (DESCENT == 'patrilineal') {
+				indsM.genome2.addNewMutation(mut, 1.0, UpperXY);
+			}
+			else {
+				indsF.genome1.addNewMutation(mut, 1.0, UpperMt);
+			}
+		}
+	}
+	
+	if (LIN) {
+		// marker on group 1
+		inds = p1.individuals[p1.individuals.age == 0];
+		indsM = inds[inds.sex == 'M'];
+		indsF = inds[inds.sex == 'F'];
+		if (DESCENT == 'patrilineal') {
+			indsM.genome2.addNewMutation(m11, 1.0, UpperXY);
+		}
+		else {
+			indsF.genome1.addNewMutation(m11, 1.0, UpperMt);
+		}
+	}
+	
+	sim.setValue('lastCommonAncestor', lastCommonAncestor);
+	
+	// attribute a growth rate to each group
+	growthRate = rep(1.0, N);
+	sim.setValue("growthRate", growthRate);
+	
+	// initialize number of extinctions
+	sim.setValue("nExtinctions", 0);
+	
+	// initialize number of fissions
+	sim.setValue("nFissions", 0);
+	
+	// record fission
+	sim.setValue("fission", c());
+	
+	// counter of groups
+	sim.setValue("counter", N);
+	
+	// make villages
+	villages = Dictionary();
+	// transform ID array in Dictionary associating an array per village
+	groups = seq(1, N);
+	firstGroupIndex = 0;
+	NLIN = integerDiv(N, N_VILLAGES);  // number of groups per village
+	SUP_LIN = integerMod(N, N_VILLAGES);  // number of supplementary groups
+	for (i in seq(1, N_VILLAGES)) {
+		name = paste0(c("V", asString(i)));  // village's name
+		if (SUP_LIN > 0) {
+			lastGroupIndex = firstGroupIndex + NLIN;
+			SUP_LIN = SUP_LIN - 1;
+		}
+		else {
+			lastGroupIndex = firstGroupIndex + NLIN - 1;
+		}
+		groupVillage = groups[firstGroupIndex : lastGroupIndex];  // vector of groups for village i
+		villages.setValue(name, groupVillage);
+		firstGroupIndex = lastGroupIndex + 1;
+	}
+	
+	// record villages
+	sim.setValue("villages", villages);
+	
+	// set village initial size
+	K_village = K * NLIN;
+	sim.setValue("K_village", K_village);
+	
+	if (RF == F) {
+		sim.setValue("ID", ID);
+	}
+	
+	// add markers for villages
+	for (village in villages.allKeys) {
+		ind = c();
+		for (groupID in villages.getValue(village)) {
+			group = sim.subpopulations[sim.subpopulations.id == groupID];
+			indGroup = group.individuals[group.individuals.age == 0];
+			ind = c(ind, indGroup);
+		}
+		
+		if (village == 'V1') {
+			ind.genomes.addNewMutation(m4, 0.0, 1);
+		}
+		if (village == 'V2') {
+			ind.genomes.addNewMutation(m5, 0.0, 1);
+		}
+		if (village == 'V3') {
+			ind.genomes.addNewMutation(m6, 0.0, 1);
+		}
+		if (village == 'V4') {
+			ind.genomes.addNewMutation(m7, 0.0, 1);
+		}
+		if (village == 'V5') {
+			ind.genomes.addNewMutation(m8, 0.0, 1);
+		}
+	}
+	
+	// time between beginning of a group and fission event = group depth
+	depth = Dictionary();
+	for (i in seq(1, groups[lastGroupIndex])) {
+		depth.setValue(asString(i), 0);
+	}
+	sim.setValue('depth', depth);
+	
+	// female migration rate
+	if (RES1 == "patrilocal") {
+		sim.setValue("MF_RATIO", 0.1);
+		sim.setValue("MM_RATIO", 0);
+	}
+	else if (RES1 == "matrilocal") {
+		sim.setValue("MF_RATIO", 0);
+		sim.setValue("MM_RATIO", 0.1);
+	}
+	else {
+		sim.setValue("MF_RATIO", 0.05);
+		sim.setValue("MM_RATIO", 0.05);
+	}
+	
+	print("Elapsed (split groups + create villages) : " + (clock() - start));
+}
+
+1 first() {
+	filename = 'bash_Num_replicat/Sim_bash_Num_replicat_gen_0.trees';
+	print(filename);
+	sim.treeSeqOutput(path = filename);
+}
+
+20100 first() {
+	// female migration rate
+	if (RES2 == "patrilocal") {
+		sim.setValue("MF_RATIO", 0.1);
+		sim.setValue("MM_RATIO", 0);
+	}
+	else if (RES2 == "matrilocal") {
+		sim.setValue("MF_RATIO", 0);
+		sim.setValue("MM_RATIO", 0.1);
+	}
+	else {
+		sim.setValue("MF_RATIO", 0.05);
+		sim.setValue("MM_RATIO", 0.05);
+	}
+	
+	// change ID in dictionary containing an ID matrix for each village
+	ID = sim.getValue("ID");
+	villages = sim.getValue("villages");
+	ID_temp = Dictionary();
+	if (RF == F) {
+		for (village in villages.allKeys) {
+			ID_village = NULL;
+			groupVillage = villages.getValue(village);
+			for (lineage in groupVillage) {
+				group = community.subpopulationsWithIDs(lineage);
+				inds = group.individuals;
+				// list of pedigreeID of individuals in the village
+				if (DESCENT == 'patrilineal') {
+					indsID = inds[inds.sex == 'M'].pedigreeID;
+				}
+				else {
+					indsID = inds[inds.sex == 'F'].pedigreeID;
+				}
+				for (id in indsID) {
+					ID_village = rbind(ID_village, ID[which(ID[,0] == id),]);
+				}
+			}
+			ID_temp.setValue(village, ID_village);
+		}
+	}
+	
+	sim.setValue("ID", ID_temp);
+}
+
+first() {
+	// MIGRATION //
+	print("MIGRATION");
+	start = clock();
+	
+	// record adults
+	adults = sim.subpopulations.individuals.pedigreeID;
+	sim.setValue("adults", adults);
+	
+	MF_RATIO = sim.getValue("MF_RATIO");
+	MM_RATIO = sim.getValue("MM_RATIO");
+	villages = sim.getValue("villages");
+	
+	if (community.tick > 20100) {
+	
+		/// make lists of male and female migrants for each village ///
+		migrantsF = Dictionary();
+		migrantsM = Dictionary();
+		for (key in villages.allKeys) {
+			groupIDs = villages.getValue(key);
+			groups = community.subpopulationsWithIDs(groupIDs);
+			inds = groups.individuals;
+			nInd = size(inds); // number of individuals
+			IndF = inds[inds.sex=='F'];
+			IndM = inds[inds.sex=='M'];
+			nIndF = size(IndF); // number of females
+			nIndM = size(IndM); // number of males
+			
+			nMigrantsF = asInteger(nIndF * MF_RATIO);  // number of female migrants
+			nMigrantsM = asInteger(nIndM * MM_RATIO);  // number of male migrants
+			migrantsF.setValue(key, sample(IndF, nMigrantsF).pedigreeID);
+			migrantsM.setValue(key, sample(IndM, nMigrantsM).pedigreeID);
+		}
+		
+		// migration in a new group from a different village //
+		for (key in villages.allKeys) {
+			for (migrant in migrantsF.getValue(key))  {
+				// sample a village that is different from the migrant's village
+				possibleVillages = setDifference(villages.allKeys, key);
+				sampledVillage = sample(possibleVillages, 1);
+				// sample a group in the sampled village
+				possibleGroup = villages.getValue(sampledVillage);
+				sampledGroup = sample(possibleGroup, 1);
+				dest = community.subpopulationsWithIDs(sampledGroup);
+				// migration happens between groups from different villages
+				dest.takeMigrants(sim.individualsWithPedigreeIDs(migrant));
+			}
+			
+			for (migrant in migrantsM.getValue(key))  {
+				// sample a village that is different from the migrant's village
+				possibleVillages = setDifference(villages.allKeys, key);
+				sampledVillage = sample(possibleVillages, 1);
+				// sample a group in the sampled village
+				possibleGroup = villages.getValue(sampledVillage);
+				sampledGroup = sample(possibleGroup, 1);
+				dest = community.subpopulationsWithIDs(sampledGroup);
+				// migration happens between groups from different villages
+				dest.takeMigrants(sim.individualsWithPedigreeIDs(migrant));
+			}
+		}
+	}
+	else {
+		// sex-specific migration 
+		pops = sim.subpopulations[sim.subpopulations.individualCount > 0]; // select all villages
+		inds = pops.individuals;
+		nInd = size(inds); // nb of individuals
+		IndF = inds[inds.sex == 'F'];
+		nIndF = size(IndF);
+		IndM = inds[inds.sex == 'M'];
+		nIndM = size(IndM);
+		
+		if (MF_RATIO == 0)
+			nMigrantsF = 0;
+		else
+			nMigrantsF = asInteger(nIndF * MF_RATIO); // nb of female migrants
+		if (MF_RATIO == 1)
+			nMigrantsM = 0;
+		else
+			nMigrantsM = asInteger(nIndM * MM_RATIO); // nb of male migrants
+		migrantsF = sample(IndF, nMigrantsF);
+		migrantsM = sample(IndM, nMigrantsM);
+		
+		// migration in a new village
+		for (migrant in migrantsF)  {
+			do dest = sample(pops, 1);
+			while (dest == migrant.subpopulation);
+			dest.takeMigrants(migrant);
+		}
+		for (migrant in migrantsM)  {
+			do dest = sample(pops, 1);
+			while (dest == migrant.subpopulation);
+			dest.takeMigrants(migrant);
+		}
+	}
+	print("Elapsed (migration) : " + (clock() - start));
+}
+
+reproduction(NULL, NULL) {
+	// REPRODUCTION //
+	print("REPRODUCTION");
+	start = clock();
+	self.active = 0;  // "reproduction" is called once per generation
+
+	groups = sim.subpopulations; // select all groups
+	inds = groups.individuals; // only individuals of the current generation can have children
+	nFemales = size(inds[inds.sex=='F']); // number of females
+	nMales = size(inds[inds.sex=='M']); // number of males
+	
+	//// reproduction within each village ////
+
+	growthRate = sim.getValue("growthRate");
+	villages = sim.getValue("villages");
+	depth = sim.getValue("depth");
+	nExtinctions = sim.getValue("nExtinctions");
+	
+	// initialize number of couples	
+	nCouples = 0;
+	
+	// initialize lists of mothers and fathers IDs
+	mot = c();
+	fat = c();
+	
+	// initialize number of males that cannot find a female in a different group
+	failedCouples = 0;
+	
+	// initialize list of failed children
+	failedChildren = c();
+
+	// initialize list of couples
+	couples = c();	
+	
+	// initialize custom ID arrays for males and females
+	if (RF == F) {
+		ID = sim.getValue("ID");
+		
+		if (community.tick < 20100) {
+			ID_2 = NULL;
+		}
+		else {
+			ID_2 = Dictionary();
+		}
+	}
+	
+	for (key in villages.allKeys) {
+		print(key);
+		inds = c();
+		couplesVillage = c();  // same as couples but only for the current village
+		
+		if (community.tick >= 20100) {
+			ID_village = ID.getValue(key);
+			ID_village_2 = NULL;  // temporary ID_village in order to update it at each generation
+		}
+		
+		groups = villages.getValue(key);
+		inds = community.subpopulationsWithIDs(groups).individuals; // list of individuals in the village
+		
+		if (size(inds) == 0) {
+			next;
+		}
+		
+		// initialize number of children done
+		nChildrenDone = 0;
+		
+		// lists of single males and females in the village
+		availableM = inds[inds.sex == 'M']; // list of single males in the village
+		availableF = inds[inds.sex == 'F']; // list of single females in the village
+		
+		// form couples
+		while (size(availableM) > 0 & size(availableF) > 0) {
+			// choose a male
+			husband = sample(availableM, 1);
+			groupM = husband.subpopulation;
+			
+			// choose a female from a different group
+			targetF = availableF[availableF.subpopulation != groupM];
+			
+			// if it is not possible, choose a female from the same group
+			if (size(targetF)==0) {
+				failedCouples = failedCouples + 1;
+				wife = sample(availableF, 1);
+			}
+			else {
+				wife = sample(targetF, 1);
+			}
+			
+			// remove the couple from single males and females
+			availableM = setDifference(availableM, c(husband));
+			availableF = setDifference(availableF, c(wife));
+			
+			// update the list of couples in the group and initialize their number of children
+			if (DESCENT == 'patrilineal') {
+				couplesVillage = rbind(couplesVillage, c(key, husband.subpopulation.id, nCouples, husband.pedigreeID, wife.pedigreeID, 0));
+			}
+			else if (DESCENT == 'matrilineal') {
+				couplesVillage = rbind(couplesVillage, c(key, wife.subpopulation.id, nCouples, husband.pedigreeID, wife.pedigreeID, 0));
+			}
+			nCouples = nCouples + 1;
+		}
+		
+		// Compute probabilities of reproduction
+		groupCurrentGen = asInteger(unique(couplesVillage[,1]));
+		growthRateVillage = sapply(groupCurrentGen, "growthRate[applyValue - 1];");
+		
+		print("Elapsed (reproduction villages, proba) : " + (clock() - start));
+		start = clock();
+		
+		K_village = sim.getValue("K_village");
+		K_village = asInteger(K_village * exp(R));
+		
+		// Form couples //
+		
+		// initialize number of couples
+		nCouples_done = 0;
+		// compute breeding weights for each descent group
+		index=0;
+		if (DESCENT == 'patrilineal') {
+			breedingWeights = sapply(groupCurrentGen, "index = index + 1;p = community.subpopulationsWithIDs(applyValue); 2 * size(p.individuals[p.individuals.sex == 'M']) * exp(growthRateVillage[index-1]);");
+		}
+		else if (DESCENT == 'matrilineal') {
+			breedingWeights = sapply(groupCurrentGen, "index = index + 1;p = community.subpopulationsWithIDs(applyValue); 2 * size(p.individuals[p.individuals.sex == 'F']) * exp(growthRateVillage[index-1]);");
+		}
+		// sample K_village groups with replacement
+		sampledGroup = sample(x = groupCurrentGen, size = K_village, replace = T, weights = breedingWeights);
+		// sample 1 couple for each chosen group
+		couplesIndex = sapply(sampledGroup, "sample(couplesVillage[which(couplesVillage[,1] == applyValue),][,2], 1);");
+		sampledCouples = sapply(couplesIndex, "couplesVillage[which(couplesVillage[,2] == applyValue),][,3:4];");
+		doneCouples = t(array(sapply(sampledCouples, "inds[inds.pedigreeID == applyValue];"), c(2, asInteger(size(sampledCouples)/2))));
+		
+		// active groups in the current generation
+		groupCurrentGen = asInteger(unique(sampledGroup));
+		
+		// Compute number of extinctions
+		extinctGroup = setDifference(groups, groupCurrentGen);
+		nExt = size(extinctGroup);
+		if (nExt > 0) {
+			print('Extinction !');
+			
+			// update number of extinctions
+			nExtinctions = nExtinctions + nExt;
+			sim.setValue("nExtinctions", nExtinctions);
+			
+			// update villages
+			villages.setValue(key, groupCurrentGen); // update key in villages
+			
+			// update depth
+			for (keyExt in extinctGroup) {
+				depth.setValue(asString(keyExt), NULL);
+			}
+			
+			//update growth rates
+			for (extGroup in extinctGroup) {
+				extIndex = extGroup - 1;
+				growthRate[extIndex] = -1;
+			}
+		}
+		
+		print("Elapsed (reproduction villages, form couples) : " + (clock() - start));
+		start = clock();
+		
+		// initialize couple index
+		coupleIndex = 0;
+		
+		// make K_village children //
+		while (nChildrenDone < K_village) {
+			// get father and mother
+			father = c(doneCouples[coupleIndex, 0]);
+			mother = c(doneCouples[coupleIndex, 1]);
+			
+			// choose the group of the father if patrilineal (or mother if matrilineal)
+			// the child belongs to his father's group (patrilineal) or to his mother's group (matrilineal)
+			pop = ifelse(DESCENT == 'patrilineal', father.subpopulation, mother.subpopulation);
+			
+			// make child
+			// sex is defined so that the sex ratio = 0.5
+			if (integerMod(coupleIndex, 2) == 0) {
+				child = pop.addCrossed(mother, father, sex = 'F');
+			}
+			else {
+				child = pop.addCrossed(mother, father, sex = 'M');
+			}
+			
+			wrongSex = F;
+			
+			// females should not have a Y and have a mt and males should have a Y and not a mt
+			if (child.genome2.containsMarkerMutation(m2, UpperXY)) {
+				if (child.genome1.containsMarkerMutation(m3, UpperMt)) {
+					failedChildren = c(failedChildren, child.pedigreeID);
+					wrongSex = T;
+				}
+				else if (child.sex == 'F') {
+					failedChildren = c(failedChildren, child.pedigreeID);
+					wrongSex = T;
+				}
+			}
+			else {
+				if (!child.genome1.containsMarkerMutation(m3, UpperMt)) {
+					failedChildren = c(failedChildren, child.pedigreeID);
+					wrongSex = T;
+				}
+				else if (child.sex == 'M') {
+					failedChildren = c(failedChildren, child.pedigreeID);
+					wrongSex = T;
+				}
+			}
+			
+			if (wrongSex == F) {
+				// increment couple index
+				coupleIndex = coupleIndex + 1;
+				
+				// increment number of children for the couple
+				nChildrenDone = nChildrenDone + 1;
+				rowIndex = which(couplesVillage[,3] == father.pedigreeID);
+				couplesVillage[rowIndex,5] = asInteger(couplesVillage[rowIndex,5]) + 1;
+				
+				// increment lists of mothers and fathers
+				fat = unique(c(fat, father));
+				mot = unique(c(mot, mother));
+				
+				// matrices of IDs
+				if (RF == F) {
+					if (DESCENT == 'matrilineal' & child.sex == 'F') {
+						mother_ID = asString(mother.pedigreeID);
+						// the daughter inherits the custom ID of her mother + supplementary number corresponding to the number of the child in the family
+						if (community.tick < 20100) {						
+							value = c(ID[which(ID[,0] == mother_ID),], mother.reproductiveOutput - 1);
+							ID_2 = rbind(ID_2, c(asString(child.pedigreeID), value[1:(size(value)-1)]));
+						}
+						else {
+							ID_village_mother = ID_village[which(ID_village[,0] == mother_ID),];
+							// if mother is a migrant, give the ID of another individual in the group
+							while (size(ID_village_mother) == 0) {
+								mother = mother.subpopulation.sampleIndividuals(1, sex = 'F');
+								ID_village_mother = ID_village[which(ID_village[,0] == asString(mother.pedigreeID)),];
+								counter = counter + 1;
+								if (counter > size(mother.subpopulation.individuals[mother.subpopulation.individuals.sex == 'F']) -1) {
+									newMotherID = sample(ID_village[,0], 1);
+									ID_village_mother = ID_village[which(ID_village[,0] == newMotherID),];
+								}
+							}
+							value = c(ID_village_mother, mother.reproductiveOutput - 1);
+							ID_village_2 = rbind(ID_village_2, c(asString(child.pedigreeID), value[2:size(value)-1]));
+						}		
+					}
+					else if (DESCENT == 'patrilineal' & child.sex == 'M') {
+						father_ID = asString(father.pedigreeID);
+						// the son inherits the custom ID of his father + supplementary number corresponding to the number of the child in the family
+						if (community.tick < 20100) {		
+							value = c(ID[which(ID[,0] == father_ID),], father.reproductiveOutput - 1);
+							ID_2 = rbind(ID_2, c(asString(child.pedigreeID), value[1:(size(value)-1)]));
+						}
+						else {
+							ID_village_father = ID_village[which(ID_village[,0] == father_ID),];
+							// if father is a migrant, give the ID of another individual in the group
+							counter = 0;
+							while (size(ID_village_father) == 0) {
+								newFather = father.subpopulation.sampleIndividuals(1, sex = 'M');
+								ID_village_father = ID_village[which(ID_village[,0] == asString(newFather.pedigreeID)),];
+								counter = counter + 1;
+								if (counter > size(father.subpopulation.individuals[father.subpopulation.individuals.sex == 'M']) -1) {
+									newFatherID = sample(ID_village[,0], 1);
+									ID_village_father = ID_village[which(ID_village[,0] == newFatherID),];
+								}
+							}
+							value = c(ID_village_father, father.reproductiveOutput - 1);
+							ID_village_2 = rbind(ID_village_2, c(asString(child.pedigreeID), value[2:size(value)-1]));
+						}
+					}
+				}
+			}
+		}
+
+		// extinction of non reproductive groups
+		reproGroup = asInteger(unique(couplesVillage[,1]));
+		extinctGroup = setDifference(groupCurrentGen, reproGroup);
+		nExt = size(extinctGroup);
+		if (nExt > 0) {
+			print('Extinction !');
+			
+			// update number of extinctions
+			nExtinctions = nExtinctions + nExt;
+			sim.setValue("nExtinctions", nExtinctions);
+			
+			// update villages
+			villages.setValue(key, reproGroup);
+			
+			// update depth
+			for (keyExt in extinctGroup) {
+				depth.setValue(asString(keyExt), NULL);
+			}
+			
+			//update growth rates
+			for (extGroup in extinctGroup) {
+				extIndex = extGroup - 1;
+				growthRate[extIndex] = -1;
+			}
+		}
+		// update couples
+		couples = rbind(couples, couplesVillage);
+		
+		if (RF == F & community.tick >= 20100) {
+			ID_2.setValue(key, ID_village_2);
+		}
+	}
+	
+	print("Elapsed (reproduction villages, make children) : " + (clock() - start));
+	start = clock();
+	
+	sim.setValue('failedCouples', failedCouples);
+	sim.setValue("growthRate", growthRate);
+	
+	// increment group depth
+	newDepth = depth;
+	keys = sapply(depth.allKeys, "newDepth.setValue(applyValue, depth.getValue(applyValue) + 1); applyValue;");
+	sim.setValue("depth", newDepth);
+	
+	// compute correlation between group size and number of children
+	nChildren = c();  // list of number of children for each group
+	groups = unique(couples[,1]);
+	for (groupID in groups) {
+		couplesGroup = couples[which(couples[,1] == groupID),];
+		nChildren = c(nChildren, sum(asInteger(couplesGroup[,5])));
+	}
+	groups = community.subpopulationsWithIDs(asInteger(groups));
+	corGroupSize = cor(nChildren, groups.individualCount);
+	
+	// compute correlation between number of children and number of siblings
+	nSiblings = c();
+	coupleSize = size(couples[,0]);
+	for (i in seq(0, coupleSize - 1)) {
+		if (DESCENT == 'patrilineal') {
+			ind = sim.individualsWithPedigreeIDs(asInteger(couples[i,3]));
+		}
+		else {
+			ind = sim.individualsWithPedigreeIDs(asInteger(couples[i,4]));
+		}
+		siblings = which(ind.relatedness(sim.subpopulations.individuals) == 0.5);
+		nSiblings = c(nSiblings, size(siblings));
+	}
+	corFamSize = cor(asInteger(c(couples[,5])), nSiblings);
+	
+	//line = paste("1", community.tick, corGroupSize, corFamSize);
+	//writeFile(paste0(output, "cor_family_size.txt"), line, append = T);
+	
+	sim.setValue('couples', couples);
+	if (RF == F) {
+		sim.setValue("ID", ID_2);
+	}
+	sim.setValue("villages", villages);
+	
+	mothers = size(mot)/nFemales*100;
+	fathers = size(fat)/nMales*100;
+	nCouples = size(mot);
+	sim.setValue('mothers', mothers);
+	sim.setValue('fathers', fathers);
+	sim.setValue('nCouples', nCouples);
+	sim.setValue("K_village", K_village);
+	sim.setValue('failedChildren', failedChildren);
+}
+
+early() {
+	//non-overlapping generations : we kill parents
+	inds = sim.subpopulations.individuals;
+	adults = sim.getValue("adults");
+	if (!isNULL(adults)) {
+		sim.killIndividuals(sim.individualsWithPedigreeIDs(adults));
+	}
+	
+	// kill failed children
+	failedChildren = sim.getValue("failedChildren");
+	if (!isNULL(failedChildren)) {
+		sim.killIndividuals(sim.individualsWithPedigreeIDs(failedChildren));
+	}
+}
+
+early() {
+	if (community.tick > 20100) {
+		// FISSIONS / EXTINCTIONS //
+		print("FISSIONS / EXTINCTIONS");
+		start = clock();
+		
+		counter = sim.getValue("counter");
+		nFissions = sim.getValue("nFissions");
+		nExtinctions = sim.getValue("nExtinctions");
+		villages = sim.getValue("villages");
+		if (RF == F) {
+			ID = sim.getValue("ID");
+			groupDepth = c();
+		}
+		
+		growthRate = sim.getValue("growthRate");
+		depth = sim.getValue("depth");
+		migrantRatioList = c();
+		K_village = sim.getValue('K_village');
+
+		// unfriendly fission : list splitting groups and their village of origin
+		splittingGroups = c();
+		sourceVillages = c();
+		
+		for (village in villages.allKeys) {
+			pops = community.subpopulationsWithIDs(asInteger(villages.getValue(village)));
+			nIndsM = size(pops.individuals[pops.individuals.sex == 'M']); // nb of males in the village
+			
+			if (RF == F) {
+				ID_village = ID.getValue(village);
+			}
+			
+			for (subpop in pops) {
+				inds = subpop.individuals;
+				nInds = size(inds);
+				nMales = size(inds[inds.sex == 'M']); // nb of males in the descent group
+				
+				// fission event if the size of the descent group is above FITH and if the last fission event is older than 3 generations
+				if (nInds >= FITH & depth.getValue(asString(subpop.id)) > 3) {
+					print("Fission !");
+					nFissions = nFissions + 1;
+					
+					// update depth and counter
+					depth.setValue(asString(subpop.id), 0);
+					counter = counter + 1;
+					depth.setValue(asString(counter), 0);
+					
+					// modify growth rates for the resulting groups
+					if (TM == "half") {
+						newGrowthRate = rnorm(1, growthRate[subpop.id - 1], sigma);
+						growthRate[subpop.id - 1] = newGrowthRate;
+						growthRate = c(growthRate, rnorm(1, R, 0.1));
+					}
+					
+					else {
+						newGrowthRate = rnorm(1, growthRate[subpop.id - 1], sigma);
+						growthRate[subpop.id - 1] = rnorm(1, growthRate[subpop.id - 1], sigma);
+						growthRate = c(growthRate, newGrowthRate);
+					}
+					
+					if (DESCENT == 'patrilineal') {
+						ind = inds[inds.sex == 'M'];
+						oppositSexInd = inds[inds.sex == 'F'];
+					}
+					else if (DESCENT == 'matrilineal') {
+						ind = inds[inds.sex == 'F'];
+						oppositSexInd = inds[inds.sex == 'M'];
+					}
+					
+					/// lineal fission ///
+					if (RF == F) {
+						lastCommonAncestor = sim.getValue('lastCommonAncestor');
+						
+						// new ID matrix for individuals of the group
+						new_ID = NULL;
+						// reduce the number of values in ID vector : keep only generations where there are different ancestors
+						for (id in ind.pedigreeID) {
+							ID_village_individual = ID_village[which(ID_village[,0] == id),];
+							new_ID = rbind(new_ID, ID_village[which(ID_village[,0] == id),]);
+						}
+						
+						// find last common ancestor for the group
+						idx = lastCommonAncestor.getValue(asString(subpop.id));
+						ancestors = unique(new_ID[,idx]);
+						nAncestors = size(ancestors);
+						while (nAncestors == 1 & idx <= size(new_ID[0,])) {
+							ancestors = unique(new_ID[,idx]);
+							nAncestors = size(ancestors);
+							idx = idx + 1;
+							if (nAncestors > 1) {
+								idx = idx - 1;
+							}
+						}
+						
+						// update group depth
+						groupDepth = c(groupDepth, size(new_ID[0,]) - idx);
+						
+						// update lastCommonAncestor
+						lastCommonAncestor.setValue(asString(subpop.id), idx);
+						
+						// initialize new groups
+						group1 = c();
+						group2 = c();
+						
+						// initialize number of descendants for each new group
+						nGroup1 = 0;
+						nGroup2 = 0;
+						nDescendants = c();
+						
+						for (ancestor in ancestors) {
+							nDescendants = c(nDescendants, size(which(new_ID[,idx] == ancestor)));
+						}
+						ordered_ancestors = order(nDescendants, ascending = F);
+						
+						for (index in ordered_ancestors) {
+							if (nGroup1 <= nGroup2) {
+								group1 = c(group1, new_ID[which(new_ID[,idx] == ancestors[index]),][,0]);
+								nGroup1 = nGroup1 + nDescendants[index];
+							}
+							else {
+								group2 = c(group2, new_ID[which(new_ID[,idx] == ancestors[index]),][,0]);
+								nGroup2 = nGroup2 + nDescendants[index];
+							}
+						}
+						group_number = sample(c(1,2), 1);
+						if (group_number == 1) {
+							newGroup = group1;
+						}
+						else {
+							newGroup = group2;
+						}
+						migrants = sim.individualsWithPedigreeIDs(asInteger(newGroup));
+						ratio_migrants = size(migrants)/(nGroup1 + nGroup2);
+						
+						// add individuals of opposite sex to migrants
+						companions = sample(oppositSexInd, asInteger(ratio_migrants*size(oppositSexInd)));
+						migrants = c(migrants, companions);
+						
+						//update lastCommonAncestor
+						nCol = lastCommonAncestor.getValue(asString(subpop.id));
+						lastCommonAncestor.setValue(asString(counter), nCol);
+						sim.setValue('lastCommonAncestor', lastCommonAncestor);
+					}
+					
+					/// random fission ///
+					else {
+						// we draw a number of migrants
+						nInd = size(ind);
+						// draw the proportion of migrants in a truncated normal law of mean 0.5 and sd = 0.5
+						while (ratio_migrants > 0 & ratio_migrants < 1) {
+							ratio_migrants = rnorm(1, 0.5, 0.5);
+						}
+						nMigrants = asInteger(ratio_migrants*nInd);
+						migrants = sample(ind, nMigrants);
+						
+						// add individuals of opposite sex to migrants
+						companions = sample(oppositSexInd, asInteger(ratio_migrants*size(oppositSexInd)));
+						migrants = c(migrants, companions);
+					}
+					
+					migrantRatioList = c(migrantRatioList, ratio_migrants);
+					
+					// migration in a new group
+					group = community.subpopulationsWithIDs(counter);
+					group.takeMigrants(migrants);
+					
+					// update villages
+					randomN = runif(1, 0, 1);
+					// if fission is not friendly, the new group goes to another village with a probability pM
+					if (randomN < pM) {
+						splittingGroups = c(splittingGroups, counter);
+						sourceVillages = c(sourceVillages, village);
+					}
+					// if fission is friendly, the new group stays in the same village
+					else {
+						newGroup = Dictionary(village, c(counter));
+						// add new group to its parent village
+						villages.appendKeysAndValuesFrom(newGroup);
+					}
+					
+					// record fission
+					fission = sim.getValue("fission");
+					source = subpop.id;
+					new = counter;
+					fission = rbind(c(source, new), fission);
+					
+					sim.setValue("counter", counter);
+					sim.setValue("fission", fission);
+				}
+				
+				/// extinction (descent group without males) ///
+				if (nMales == 0) {
+					print('Extinction!');
+					
+					nExtinctions = nExtinctions + 1;
+					
+					// include remaining females in another group if necessary
+					remainingInds = subpop.individuals;
+					if (size(remainingInds) > 0) {
+						possibleGroups = setDifference(pops, subpop);
+						newGroup = sample(possibleGroups, 1);
+						newGroup.takeMigrants(remainingInds);
+					}
+					
+					// update villages
+					groupID = villages.getValue(village);
+					groups = setDifference(groupID, subpop.id);
+					villages.setValue(village, groups);
+					
+					// update depth and growthRate
+					depth.setValue(asString(subpop.id), NULL);
+					growthRate[subpop.id - 1] = -1;
+				}
+			}
+		}
+
+		if (!isNULL(sourceVillages)) {
+			print(sourceVillages);
+			print(splittingGroups);
+			for (i in seq(0, size(sourceVillages)-1)) {
+				sourceVillages[i] = strsplit(sourceVillages[i], "V")[1];
+			}
+			sourceVillages = asInteger(sourceVillages);
+			tabSourceVillages = tabulate(sourceVillages);
+			orderedSourceVillages = order(tabSourceVillages, ascending = F);
+
+			countVillages = Dictionary();
+			positions = Dictionary();
+			pos = 0;
+
+			for (i in sourceVillages) {
+				if (tabSourceVillages[i] > 0) {
+					countVillages.setValue(asString(i), tabSourceVillages[i]);
+					positions.setValue(asString(pos), i);
+				}
+				pos = pos + 1;
+			}
+
+			sortedSourceVillages = c();
+			original_pos = c();
+
+			for (i in orderedSourceVillages) {
+				if (match(asString(i), countVillages.allKeys) < 0) {
+					next;
+				}
+				sortedSourceVillages = c(sortedSourceVillages, rep(i, countVillages.getValue(asString(i))));
+				for (p in positions.allKeys) {
+					val = positions.getValue(p);
+					if (val == i) {
+						original_pos = c(original_pos, p);
+						positions.setValue(p, NULL);
+						next;
+					}
+				}
+			}
+
+			// reorder groups
+			original_pos = asInteger(original_pos);
+			sortedSplittingGroups = sapply(original_pos, "splittingGroups[applyValue];");
+			print(sortedSplittingGroups);
+
+			// sample a village
+			originalList = sortedSourceVillages;
+			remaining_indices = seq(0, size(sortedSourceVillages)-1);
+			print(sortedSourceVillages);
+			for (i in seq(0, size(originalList)-1)) {
+				print(i);
+				original_value = originalList[i];
+				if (sortedSourceVillages[i] != original_value) {
+					next;
+				}
+				available_indices = F;
+				
+				for (j in seq(0, size(sortedSourceVillages)-1)) {
+					if (j == i) {
+						next;
+					}
+					if (sortedSourceVillages[j] != original_value & sortedSourceVillages[i] != originalList[j]) {
+						// swap values
+						sortedSourceVillages[i] = sortedSourceVillages[j];
+						sortedSourceVillages[j] = original_value;
+						remaining_indices = setDifference(remaining_indices, j);
+						remaining_indices = setDifference(remaining_indices, i);
+						available_indices = T;
+						break;
+					}
+				}
+				if (available_indices == F) {
+					sampleIndex = sample(setDifference(seq(1, 5), original_value), 1);
+					sortedSourceVillages[i] = sampleIndex;
+					sampleRemainingIndex = sample(remaining_indices, 1);
+					remaining_indices = setDifference(remaining_indices, sampleRemainingIndex);
+				}
+			}
+
+			print(sortedSourceVillages);
+			for (i in seq(0, size(sortedSplittingGroups)-1)) {
+				newVillage = paste0("V", sortedSourceVillages[i]);
+				groupID = sortedSplittingGroups[i];
+				newGroup = Dictionary(newVillage, c(groupID));
+				// add new group to its host village
+				villages.appendKeysAndValuesFrom(newGroup);
+
+				if (RF == F) {
+					// update ID
+					ID_newVillage = ID.getValue(newVillage);
+					previousVillage = paste0("V", originalList[i]);
+					print(previousVillage);
+					ID_previousVillage = ID.getValue(previousVillage);
+					for (ind in community.subpopulationsWithIDs(groupID).individuals.pedigreeID) {
+						ID_newVillage = rbind(ID_newVillage, ID_previousVillage[which(ID_previousVillage[,0] == ind),]);
+						//ID_previousVillage[which(ID_previousVillage[,0] == ind),] = NULL;
+					}
+					//ID.setValue(previousVillage, ID_previousVillage);
+					ID.setValue(newVillage, ID_newVillage);
+				}
+			}
+			if (RF == F) {
+				sim.setValue("ID", ID);
+			}
+		}
+	
+		if (V == T) {
+			for (village in villages.allKeys) {
+				pops = community.subpopulationsWithIDs(asInteger(villages.getValue(village)));
+				nIndsM = size(pops.individuals[pops.individuals.sex == 'M']); // nb of males in the village
+			
+				nGroup = size(pops);
+				nDeathsGroup = Dictionary();
+				rho = e /((nGroup - 1) * sqrt(nIndsM/nGroup));
+			
+				for (subpop in pops) {
+					inds = subpop.individuals;
+					nMales = size(inds[inds.sex == 'M']); // nb of males in the descent group
+				
+					// extinction due to violence between groups
+
+					// kill only males
+					// condition : there are males in the group and in other groups of the village
+					if (nMales > 0 & nIndsM - nMales > 0) {
+						// number of deaths in the group so that the number of deaths is
+						// proportionnately higher in smaller groups
+						deathRate = (nIndsM - nMales) * rho * sqrt(nMales);
+						// deathRate = (nIndsM - nMales) * rho; // higher deathRate for small groups
+						nDeaths = rpois(n=1,lambda=deathRate);
+						if (nDeaths > nMales) {
+							nDeaths = nMales;
+						}
+						deadInds = subpop.sampleIndividuals(nDeaths, sex = 'M');
+						sim.killIndividuals(deadInds);
+						
+						// extinction if there is no more individuals in the group
+						if (nDeaths == nMales) {
+							print("Extinction !");
+							nExtinctions = nExtinctions + 1;
+							
+							// remove remaining females from subpop
+							remainingInds = subpop.individuals;
+							if (size(remainingInds) > 0) {
+								sim.killIndividuals(remainingInds);
+							}
+							
+							// update villages
+							groupID = villages.getValue(village);
+							groups = setDifference(groupID, subpop.id);
+							villages.setValue(village, groups);
+							
+							// update depth and growth rate
+							depth.setValue(asString(subpop.id), NULL);
+							growthRate[subpop.id - 1] = -1;
+						}
+					}
+				}
+			}
+		}
+		/// remove unactive groups ///
+		activeGroup = sim.subpopulations[sim.subpopulations.individualCount > 0];
+		realGroup = c();
+		for (village in villages.allKeys) {
+			realGroup = c(realGroup, community.subpopulationsWithIDs(asInteger(villages.getValue(village))));
+		}
+		extinctGroup = setDifference(activeGroup, realGroup);
+		for (group in extinctGroup) {
+			sim.killIndividuals(group.individuals);
+		}
+		
+		sim.setValue("villages", villages);
+		sim.setValue("depth", depth);
+		sim.setValue("growthRate", growthRate);
+		sim.setValue('migrantRatioList', migrantRatioList);
+		sim.setValue('nFissions', nFissions);
+		sim.setValue("nExtinctions", nExtinctions);
+		if (RF == F) {
+			sim.setValue("groupDepth", groupDepth);
+		}
+		print("Elapsed (Fissions/Extinctions) : " + (clock() - start));
+	}
+}
+
+20020 late() {
+	filename = paste0(c('bash_Num_replicat/Sim_bash_Num_replicat_gen_20.trees'));
+	print(filename);
+	sim.treeSeqOutput(path = filename);
+}
+
+20040 late() {
+	filename = paste0(c('bash_Num_replicat/Sim_bash_Num_replicat_gen_40.trees'));
+	print(filename);
+	sim.treeSeqOutput(path = filename);
+}
+
+20060 late() {
+	filename = paste0(c('bash_Num_replicat/Sim_bash_Num_replicat_gen_60.trees'));
+	print(filename);
+	sim.treeSeqOutput(path = filename);
+}
+
+20080 late() {
+	filename = paste0(c('bash_Num_replicat/Sim_bash_Num_replicat_gen_80.trees'));
+	print(filename);
+	sim.treeSeqOutput(path = filename);
+}
+
+20100 late() {
+	filename = 'bash_Num_replicat/Sim_bash_Num_replicat_gen_100.trees';
+	print(filename);
+	sim.treeSeqOutput(path = filename);
+}
+
+20120 late() {
+	villages = sim.getValue("villages");
+	
+	// add markers for villages
+	for (village in villages.allKeys) {
+		ind = c();
+		for (groupID in villages.getValue(village)) {
+			group = sim.subpopulations[sim.subpopulations.id == groupID];
+			indGroup = group.individuals[group.individuals.age == 0];
+			ind = c(ind, indGroup);		}
+		if (village == 'V1') {
+			ind.genomes.addNewMutation(m4, 0.0, 1);
+		}
+		if (village == 'V2') {
+			ind.genomes.addNewMutation(m5, 0.0, 1);
+		}
+		if (village == 'V3') {
+			ind.genomes.addNewMutation(m6, 0.0, 1);
+		}
+		if (village == 'V4') {
+			ind.genomes.addNewMutation(m7, 0.0, 1);
+		}
+		if (village == 'V5') {
+			ind.genomes.addNewMutation(m8, 0.0, 1);
+		}
+	}
+	
+	filename = 'bash_Num_replicat/Sim_bash_Num_replicat_gen_120.trees';
+	print(filename);
+	sim.treeSeqOutput(path = filename);
+}
+
+20140 late() {
+	villages = sim.getValue("villages");
+	
+	// add markers for villages
+	for (village in villages.allKeys) {
+		ind = c();
+		for (groupID in villages.getValue(village)) {
+			group = sim.subpopulations[sim.subpopulations.id == groupID];
+			indGroup = group.individuals[group.individuals.age == 0];
+			ind = c(ind, indGroup);		}
+		if (village == 'V1') {
+			ind.genomes.addNewMutation(m4, 0.0, 1);
+		}
+		if (village == 'V2') {
+			ind.genomes.addNewMutation(m5, 0.0, 1);
+		}
+		if (village == 'V3') {
+			ind.genomes.addNewMutation(m6, 0.0, 1);
+		}
+		if (village == 'V4') {
+			ind.genomes.addNewMutation(m7, 0.0, 1);
+		}
+		if (village == 'V5') {
+			ind.genomes.addNewMutation(m8, 0.0, 1);
+		}
+	}
+	
+	filename = 'bash_Num_replicat/Sim_bash_Num_replicat_gen_140.trees';
+	print(filename);
+	sim.treeSeqOutput(path = filename);
+}
+
+20160 late() {
+	villages = sim.getValue("villages");
+	
+	// add markers for villages
+	for (village in villages.allKeys) {
+		ind = c();
+		for (groupID in villages.getValue(village)) {
+			group = sim.subpopulations[sim.subpopulations.id == groupID];
+			indGroup = group.individuals[group.individuals.age == 0];
+			ind = c(ind, indGroup);		}
+		if (village == 'V1') {
+			ind.genomes.addNewMutation(m4, 0.0, 1);
+		}
+		if (village == 'V2') {
+			ind.genomes.addNewMutation(m5, 0.0, 1);
+		}
+		if (village == 'V3') {
+			ind.genomes.addNewMutation(m6, 0.0, 1);
+		}
+		if (village == 'V4') {
+			ind.genomes.addNewMutation(m7, 0.0, 1);
+		}
+		if (village == 'V5') {
+			ind.genomes.addNewMutation(m8, 0.0, 1);
+		}
+	}
+	
+	filename = 'bash_Num_replicat/Sim_bash_Num_replicat_gen_160.trees';
+	print(filename);
+	sim.treeSeqOutput(path = filename);
+}
+
+20180 late() {
+	villages = sim.getValue("villages");
+	
+	// add markers for villages
+	for (village in villages.allKeys) {
+		ind = c();
+		for (groupID in villages.getValue(village)) {
+			group = sim.subpopulations[sim.subpopulations.id == groupID];
+			indGroup = group.individuals[group.individuals.age == 0];
+			ind = c(ind, indGroup);		}
+		if (village == 'V1') {
+			ind.genomes.addNewMutation(m4, 0.0, 1);
+		}
+		if (village == 'V2') {
+			ind.genomes.addNewMutation(m5, 0.0, 1);
+		}
+		if (village == 'V3') {
+			ind.genomes.addNewMutation(m6, 0.0, 1);
+		}
+		if (village == 'V4') {
+			ind.genomes.addNewMutation(m7, 0.0, 1);
+		}
+		if (village == 'V5') {
+			ind.genomes.addNewMutation(m8, 0.0, 1);
+		}
+	}
+	
+	filename = 'bash_Num_replicat/Sim_bash_Num_replicat_gen_180.trees';
+	print(filename);
+	sim.treeSeqOutput(path = filename);
+}
+
+20200 late() {
+	villages = sim.getValue("villages");
+	
+	// add markers for villages
+	for (village in villages.allKeys) {
+		ind = c();
+		for (groupID in villages.getValue(village)) {
+			group = sim.subpopulations[sim.subpopulations.id == groupID];
+			indGroup = group.individuals[group.individuals.age == 0];
+			ind = c(ind, indGroup);		}
+		if (village == 'V1') {
+			ind.genomes.addNewMutation(m4, 0.0, 1);
+		}
+		if (village == 'V2') {
+			ind.genomes.addNewMutation(m5, 0.0, 1);
+		}
+		if (village == 'V3') {
+			ind.genomes.addNewMutation(m6, 0.0, 1);
+		}
+		if (village == 'V4') {
+			ind.genomes.addNewMutation(m7, 0.0, 1);
+		}
+		if (village == 'V5') {
+			ind.genomes.addNewMutation(m8, 0.0, 1);
+		}
+	}
+	
+	filename = 'bash_Num_replicat/Sim_bash_Num_replicat_gen_200.trees';
+	print(filename);
+	sim.treeSeqOutput(path = filename);
+}
