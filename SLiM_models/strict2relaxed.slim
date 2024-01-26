@@ -12,6 +12,9 @@ initialize() {
 	initializeMutationRate(0);
 	
 	initializeSex("A");
+
+	// working directory
+	defineConstant("wd", "bash_wd");
 	
 	// number of villages
 	defineConstant("N_VILLAGES", bash_Num_villages);
@@ -59,9 +62,6 @@ initialize() {
 	// transmission of growth rate to the new group
 	defineConstant("TM", "bash_transmission");
 	
-	// mark groups
-	defineConstant("LIN", bash_lin_mark);
-	
 	// output folder
 	defineConstant("nameDir", "bash_dir_table");
 	
@@ -75,12 +75,6 @@ initialize() {
 	initializeMutationType("m6", 1.0, "f", 0.0); // village 3 marker	
 	initializeMutationType("m7", 1.0, "f", 0.0); // village 4 marker	
 	initializeMutationType("m8", 1.0, "f", 0.0); // village 5 marker	
-	
-	if (LIN) {
-		for (i in 11:31) {
-			initializeMutationType(paste0("m", asString(i)), 1.0, "f", 0.0); // group marker
-		}
-	}
 	
 	initializeGenomicElementType("g1", m1, 1.0);
 	
@@ -145,33 +139,6 @@ initialize() {
 		
 		newPop = community.subpopulationsWithIDs(i);
 		newPop.takeMigrants(migrants);
-		
-		// marker on groups
-		if (LIN) {
-			mut = 10 + i;
-			inds = migrants;
-			indsM = inds[inds.sex == 'M'];
-			indsF = inds[inds.sex == 'F'];
-			if (DESCENT == 'patrilineal') {
-				indsM.genome2.addNewMutation(mut, 1.0, UpperXY);
-			}
-			else {
-				indsF.genome1.addNewMutation(mut, 1.0, UpperMt);
-			}
-		}
-	}
-	
-	if (LIN) {
-		// marker on group 1
-		inds = p1.individuals[p1.individuals.age == 0];
-		indsM = inds[inds.sex == 'M'];
-		indsF = inds[inds.sex == 'F'];
-		if (DESCENT == 'patrilineal') {
-			indsM.genome2.addNewMutation(m11, 1.0, UpperXY);
-		}
-		else {
-			indsF.genome1.addNewMutation(m11, 1.0, UpperMt);
-		}
 	}
 	
 	sim.setValue('lastCommonAncestor', lastCommonAncestor);
@@ -202,16 +169,16 @@ initialize() {
 	ID_temp = Dictionary();
 	groups = seq(1, N);
 	firstGroupIndex = 0;
-	NLIN = integerDiv(N, N_VILLAGES);  // number of groups per village
+	N_GROUP = integerDiv(N, N_VILLAGES);  // number of groups per village
 	SUP_LIN = integerMod(N, N_VILLAGES);  // number of supplementary groups
 	for (i in seq(1, N_VILLAGES)) {
 		name = paste0(c("V", asString(i)));  // village's name
 		if (SUP_LIN > 0) {
-			lastGroupIndex = firstGroupIndex + NLIN;
+			lastGroupIndex = firstGroupIndex + N_GROUP;
 			SUP_LIN = SUP_LIN - 1;
 		}
 		else {
-			lastGroupIndex = firstGroupIndex + NLIN - 1;
+			lastGroupIndex = firstGroupIndex + N_GROUP - 1;
 		}
 		groupVillage = groups[firstGroupIndex : lastGroupIndex];  // vector of groups for village i
 		villages.setValue(name, groupVillage);
@@ -241,7 +208,7 @@ initialize() {
 	sim.setValue("villages", villages);
 	
 	// set village initial size
-	K_village = K * NLIN;
+	K_village = K * N_GROUP;
 	sim.setValue("K_village", K_village);
 	
 	// record ID array
@@ -730,7 +697,7 @@ reproduction(NULL, NULL) {
 			}
 			line = paste("bash_Num_replicat", community.tick, key, groups[i], nChildGroup, pGroup[i], proba[i], sizeGroup);
 			//line = paste("bash_Num_replicat", community.tick, village, groups[i], nChildGroup, pGroup[i], proba[i], community.subpopulationsWithIDs(groups[i]).individualCount);
-			writeFile(paste0(output, "proba_lin.txt"), line, append = T);
+			writeFile(paste0(output, "proba_group.txt"), line, append = T);
 		}
 		meanR = mean(pGroup/mean(pGroup));
 		varR = var(pGroup/mean(pGroup));
@@ -750,42 +717,6 @@ reproduction(NULL, NULL) {
 	newDepth = depth;
 	keys = sapply(depth.allKeys, "newDepth.setValue(applyValue, depth.getValue(applyValue) + 1); applyValue;");
 	sim.setValue("depth", newDepth);
-	
-	// compute correlation between group size and number of children
-	nChildren = c();  // list of number of children for each group
-	groups = unique(couples[,1]);
-	for (group in groups) {
-		couplesGroup = couples[which(couples[,1] == group),];
-		nChildren = c(nChildren, sum(asInteger(couplesGroup[,5])));
-	}
-	groups = community.subpopulationsWithIDs(asInteger(groups));
-	//corGroupSize = cor(nChildren, groups.individualCount);
-	if (DESCENT == 'patrilineal') {
-		sizeGroup = sapply(groups, "2*size(applyValue.individuals[applyValue.individuals.sex == 'M']);");
-	}
-	else if (DESCENT == 'matrilineal') {
-		sizeGroup = sapply(groups, "2*size(applyValue.individuals[applyValue.individuals.sex == 'F']);");
-	}
-	corGroupSize = cor(nChildren, sizeGroup);
-	
-	// compute correlation between number of children and number of siblings
-	nSiblings = c();
-	coupleSize = size(couples[,0]);
-	for (i in seq(0, coupleSize - 1)) {
-		if (DESCENT == 'patrilineal') {
-			ind = sim.individualsWithPedigreeIDs(asInteger(couples[i,3]));
-		}
-		else {
-			ind = sim.individualsWithPedigreeIDs(asInteger(couples[i,4]));
-		}
-		siblings = which(ind.relatedness(sim.subpopulations.individuals) == 0.5);
-		nSiblings = c(nSiblings, size(siblings));
-	}
-	
-	corFamSize = cor(asInteger(c(couples[,5])), nSiblings);
-	
-	line = paste("bash_Num_replicat", community.tick, corGroupSize, corFamSize);
-	writeFile(paste0(output, "cor_family_size.txt"), line, append = T);
 	
 	mothers = size(mot)/nIndsF*100;
 	fathers = size(fat)/nIndsM*100;

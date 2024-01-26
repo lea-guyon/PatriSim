@@ -12,6 +12,9 @@ initialize() {
 	initializeMutationRate(0);
 	
 	initializeSex("A");
+
+	// working directory
+	defineConstant("wd", "bash_wd");
 	
 	// number of villages
 	defineConstant("N_VILLAGES", bash_Num_villages);
@@ -43,8 +46,11 @@ initialize() {
 	// descent rule
 	defineConstant("DESCENT", "bash_descent_rule");
 
-	// residence rule
-	defineConstant("RES", "bash_residence_rule");
+	// female migration rate
+	defineConstant("MF_RATIO", bash_mf_ratio);
+
+	// male migration rate
+	defineConstant("MM_RATIO", bash_mm_ratio);
 	
 	// variance of the normal law used to draw growth rates
 	defineConstant("sigma", bash_sigma);
@@ -54,9 +60,6 @@ initialize() {
 	
 	// transmission of growth rate to the new group
 	defineConstant("TM", "bash_transmission");
-	
-	// mark groups
-	defineConstant("LIN", bash_lin_mark);
 	
 	// output folder
 	defineConstant("nameDir", "bash_dir_table");
@@ -72,12 +75,6 @@ initialize() {
 	initializeMutationType("m7", 1.0, "f", 0.0); // village 4 marker	
 	initializeMutationType("m8", 1.0, "f", 0.0); // village 5 marker	
 	
-	if (LIN) {
-		for (i in 11:31) {
-			initializeMutationType(paste0("m", asString(i)), 1.0, "f", 0.0); // group marker
-		}
-	}
-	
 	initializeGenomicElementType("g1", m1, 1.0);
 	
 	defineConstant("UpperA", CHR_SIZE[0]);  // upper boundary for autosomes	
@@ -92,10 +89,10 @@ initialize() {
 	initializeRecombinationRate(c(1.1e-8, 0.5, 1e-8, 0.5, 0), c(UpperA, LowerXY, UpperXY, LowerMt, UpperMt), sex='F');
 	
 	if (V == F) {
-		defineConstant("output", paste0("~/Documents/SLiM_model/Tables/Simulations_metrics/unilineal/extended/r=", R, '/sigma=', sigma, '/FT=', FITH, '/',  nameDir, "/"));
+		defineConstant("output", paste0(wd, "/Tables/Simulations_metrics/unilineal/extended/r=", R, '/sigma=', sigma, '/FT=', FITH, '/',  nameDir, "/"));
 	}
 	else
-		defineConstant("output", paste0("~/Documents/SLiM_model/Tables/Simulations_metrics/unilineal/extended/r=", R, '/sigma=', sigma, '/FT=', FITH, '/',  '/e=', e, '/', nameDir, "/"));
+		defineConstant("output", paste0(wd, "/Tables/Simulations_metrics/unilineal/extended/r=", R, '/sigma=', sigma, '/FT=', FITH, '/',  '/e=', e, '/', nameDir, "/"));
 }
 
 1 first() {
@@ -103,17 +100,17 @@ initialize() {
 	
 	// load the burn-in simulation
 	suppressWarnings(T);
-	sim.readFromPopulationFile(paste0(c('~/Documents/SLiM_model/Burn_in/villages_unilineal_descent_burn_in_', asString(N_REP), '.trees')));
+	sim.readFromPopulationFile(paste0(c(wd, '/Burn_in/villages_unilineal_descent_burn_in_', asString(N_REP), '.trees')));
 	inds = p1.individuals;
 	nInds = size(inds);
 	
 	// load ancestors array
 	if (RF == F) {
 		if (DESCENT == 'patrilineal') {
-			ID_temp = readFile(paste0(c('~/Documents/SLiM_model/Burn_in/patrilineal_ID_', asString(N_REP), '.txt')));
+			ID_temp = readFile(paste0(c(wd, '/Burn_in/patrilineal_ID_', asString(N_REP), '.txt')));
 		}
 		else {
-			ID_temp = readFile(paste0(c('~/Documents/SLiM_model/Burn_in/matrilineal_ID_', asString(N_REP), '.txt')));
+			ID_temp = readFile(paste0(c(wd, '/Burn_in/matrilineal_ID_', asString(N_REP), '.txt')));
 		}
 		ID_temp = array(ID_temp, c(size(ID_temp), 1));
 		ID = NULL;
@@ -140,33 +137,6 @@ initialize() {
 		
 		newPop = community.subpopulationsWithIDs(i);
 		newPop.takeMigrants(migrants);
-		
-		// marker on groups
-		if (LIN) {
-			mut = 10 + i;
-			inds = migrants;
-			indsM = inds[inds.sex == 'M'];
-			indsF = inds[inds.sex == 'F'];
-			if (DESCENT == 'patrilineal') {
-				indsM.genome2.addNewMutation(mut, 1.0, UpperXY);
-			}
-			else {
-				indsF.genome1.addNewMutation(mut, 1.0, UpperMt);
-			}
-		}
-	}
-	
-	if (LIN) {
-		// marker on group 1
-		inds = p1.individuals[p1.individuals.age == 0];
-		indsM = inds[inds.sex == 'M'];
-		indsF = inds[inds.sex == 'F'];
-		if (DESCENT == 'patrilineal') {
-			indsM.genome2.addNewMutation(m11, 1.0, UpperXY);
-		}
-		else {
-			indsF.genome1.addNewMutation(m11, 1.0, UpperMt);
-		}
 	}
 	
 	sim.setValue('lastCommonAncestor', lastCommonAncestor);
@@ -181,9 +151,6 @@ initialize() {
 	// initialize number of fissions
 	sim.setValue("nFissions", 0);
 	
-	// record fission
-	sim.setValue("fission", c()); // TO-DO : encore utile ?
-	
 	// counter of groups
 	sim.setValue("counter", N);
 	
@@ -193,16 +160,16 @@ initialize() {
 	ID_temp = Dictionary();
 	groups = seq(1, N);
 	firstGroupIndex = 0;
-	NLIN = integerDiv(N, N_VILLAGES);  // number of groups per village
-	SUP_LIN = integerMod(N, N_VILLAGES);  // number of supplementary groups
+	N_GROUP = integerDiv(N, N_VILLAGES);  // number of groups per village
+	SUP_GROUP = integerMod(N, N_VILLAGES);  // number of supplementary groups
 	for (i in seq(1, N_VILLAGES)) {
 		name = paste0(c("V", asString(i)));  // village's name
-		if (SUP_LIN > 0) {
-			lastGroupIndex = firstGroupIndex + NLIN;
-			SUP_LIN = SUP_LIN - 1;
+		if (SUP_GROUP > 0) {
+			lastGroupIndex = firstGroupIndex + N_GROUP;
+			SUP_GROUP = SUP_GROUP - 1;
 		}
 		else {
-			lastGroupIndex = firstGroupIndex + NLIN - 1;
+			lastGroupIndex = firstGroupIndex + N_GROUP - 1;
 		}
 		groupVillage = groups[firstGroupIndex : lastGroupIndex];  // vector of groups for village i
 		villages.setValue(name, groupVillage);
@@ -232,7 +199,7 @@ initialize() {
 	sim.setValue("villages", villages);
 	
 	// set village initial size
-	K_village = K * NLIN;
+	K_village = K * N_GROUP;
 	sim.setValue("K_village", K_village);
 	
 	// record ID array
@@ -275,20 +242,6 @@ initialize() {
 	
 	sim.setValue('migrantRatioList', c());
 	
-	// female migration rate
-	if (RES == "patrilocal") {
-		sim.setValue("MF_RATIO", 0.1);
-		sim.setValue("MM_RATIO", 0);
-	}
-	else if (RES == "matrilocal") {
-		sim.setValue("MF_RATIO", 0);
-		sim.setValue("MM_RATIO", 0.1);
-	}
-	else {
-		sim.setValue("MF_RATIO", 0.05);
-		sim.setValue("MM_RATIO", 0.05);
-	}
-	
 	print("Elapsed (split groups + create villages) : " + (clock() - start));
 }
 
@@ -306,9 +259,7 @@ first() {
 	// record adults
 	adults = sim.subpopulations.individuals.pedigreeID;
 	sim.setValue("adults", adults);
-	
-	MF_RATIO = sim.getValue("MF_RATIO");
-	MM_RATIO = sim.getValue("MM_RATIO");
+
 	villages = sim.getValue("villages");
 	
 	if (community.tick <= 20100) {
@@ -697,15 +648,6 @@ reproduction(NULL, NULL) {
 		newDepth = depth;
 		keys = sapply(depth.allKeys, "newDepth.setValue(applyValue, depth.getValue(applyValue) + 1); applyValue;");
 		sim.setValue("depth", newDepth);
-		
-		// compute correlation between group size and number of children
-		nChildren = c();  // list of number of children for each group
-		groups = unique(couples[,1]);
-		for (group in groups) {
-			couplesGroup = couples[which(couples[,1] == group),];
-			nChildren = c(nChildren, sum(asInteger(couplesGroup[,5])));
-		}
-		groups = community.subpopulationsWithIDs(asInteger(groups));
 	
 		sim.setValue('couples', couples);
 		if (RF == F) {
