@@ -12,6 +12,9 @@ initialize() {
 	initializeMutationRate(0);
 	
 	initializeSex("A");
+
+	// working directory
+	defineConstant("wd", "bash_wd");
 	
 	// number of villages
 	defineConstant("N_VILLAGES", bash_Num_villages);
@@ -57,12 +60,12 @@ initialize() {
 	initializeRecombinationRate(c(1.1e-8, 0.5, 0, 0.5, 1e-8), c(UpperA, LowerXY, UpperXY, LowerMt, UpperMt), sex='M');
 	initializeRecombinationRate(c(1.1e-8, 0.5, 1e-8, 0.5, 0), c(UpperA, LowerXY, UpperXY, LowerMt, UpperMt), sex='F');
 	
-	defineConstant("output", paste0("~/Documents/SLiM_model/Tables/Simulations_metrics/bilateral/regular/r=", R, '/', nameDir, "/"));
+	defineConstant("output", paste0(wd, "/Tables/Simulations_metrics/bilateral/regular/r=", R, '/', nameDir, "/"));
 }
 
 1 first() {
 	// load burn-in simulation
-	sim.readFromPopulationFile(paste(c('~/Documents/SLiM_model/Burn_in/villages_unilineal_descent_burn_in_', asString(N_REP), '.trees'), sep=""));
+	sim.readFromPopulationFile(paste(c(wd, '/Burn_in/villages_unilineal_descent_burn_in_', asString(N_REP), '.trees'), sep=""));
 	T_POP = size(sim.subpopulations);  // total number of subpopulations
 	suppressWarnings(F);
 	
@@ -192,23 +195,9 @@ reproduction(NULL, NULL) {
 		}
 		else {
 			size = sizeF;
-			if (supermale == T) {
-					if (sMale == F) {
-						w = c(100, rep(1, asInteger(size(males) - 1)));
-						weights = sample(w, size(males));
-						sMale = T;
-					}
-					else {
-						weights = rep(1, size(males));
-					}
-				}					
-
-				else {
-					//weights = rpois(size(males), 1.2);
-					weights = rgeom(size(males), 1/2);
-				}
-				indsM = sample(males, size, replace = T, weights = weights);
-				indsF = females;
+			weights = rgeom(size(males), 1/2);
+			indsM = sample(males, size, replace = T, weights = weights);
+			indsF = females;
 		}
 		
 		// initialize nChildrenPerCouple for each couple

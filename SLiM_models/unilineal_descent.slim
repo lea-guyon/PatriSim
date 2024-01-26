@@ -12,6 +12,9 @@ initialize() {
 	initializeMutationRate(0);
 	
 	initializeSex("A");
+
+	// working directory
+	defineConstant("wd", "bash_wd");
 	
 	// number of villages
 	defineConstant("N_VILLAGES", bash_Num_villages);
@@ -57,7 +60,6 @@ initialize() {
 	
 	// polygyny
 	defineConstant("POLY", bash_polygyny);
-	defineConstant("supermale", bash_supermale);
 	
 	// transmission of growth rate to the new group
 	defineConstant("TM", "bash_transmission");
@@ -91,10 +93,10 @@ initialize() {
 	initializeRecombinationRate(c(1.1e-8, 0.5, 1e-8, 0.5, 0), c(UpperA, LowerXY, UpperXY, LowerMt, UpperMt), sex='F');
 	
 	if (V == F) {
-		defineConstant("output", paste0("~/Documents/SLiM_model/Tables/Simulations_metrics/unilineal/regular/r=", R, '/sigma=', sigma, '/FT=', FITH, '/',  nameDir, "/"));
+		defineConstant("output", paste0(wd, "/Tables/metrics/unilineal/regular/r=", R, '/sigma=', sigma, '/FT=', FITH, '/',  nameDir, "/"));
 	}
 	else
-		defineConstant("output", paste0("~/Documents/SLiM_model/Tables/Simulations_metrics/unilineal/regular/r=", R, '/sigma=', sigma, '/FT=', FITH, '/',  '/e=', e, '/', nameDir, "/"));
+		defineConstant("output", paste0(wd, "/Tables/metrics/unilineal/regular/r=", R, '/sigma=', sigma, '/FT=', FITH, '/',  '/e=', e, '/', nameDir, "/"));
 }
 
 1 first() {
@@ -102,17 +104,17 @@ initialize() {
 	
 	// load the burn-in simulation
 	suppressWarnings(T);
-	sim.readFromPopulationFile(paste0(c('~/Documents/SLiM_model/Burn_in/villages_unilineal_descent_burn_in_', asString(N_REP), '.trees')));
+	sim.readFromPopulationFile(paste0(c(wd, '/Burn_in/villages_unilineal_descent_burn_in_', asString(N_REP), '.trees')));
 	inds = p1.individuals;
 	nInds = size(inds);
 	
 	// load ancestors array
 	if (RF == F) {
 		if (DESCENT == 'patrilineal') {
-			ID_temp = readFile(paste0(c('~/Documents/SLiM_model/Burn_in/patrilineal_ID_', asString(N_REP), '.txt')));
+			ID_temp = readFile(paste0(c(wd, '/Burn_in/patrilineal_ID_', asString(N_REP), '.txt')));
 		}
 		else {
-			ID_temp = readFile(paste0(c('~/Documents/SLiM_model/Burn_in/matrilineal_ID_', asString(N_REP), '.txt')));
+			ID_temp = readFile(paste0(c(wd, 'Burn_in/matrilineal_ID_', asString(N_REP), '.txt')));
 		}
 		ID_temp = array(ID_temp, c(size(ID_temp), 1));
 		ID = NULL;
@@ -403,21 +405,7 @@ reproduction(NULL, NULL) {
 		else {
 			// polygyny
 			males = inds[inds.sex == 'M'];
-
-			if (supermale == T) {
-				if (sMale == F) {
-					w = c(100, rep(1, asInteger(size(males) - 1)));
-					weights = sample(w, size(males));
-					sMale = T;
-				}
-				else {
-					weights = rep(1, size(males));
-				}
-			}					
-			else {
-				//weights = rpois(size(males), 1.2);
-				weights = rgeom(size(males), 1/2);
-			}
+			weights = rgeom(size(males), 1/2);
 			availableM = sample(males, sizeF, replace = T, weights = weights);
 		}
 		

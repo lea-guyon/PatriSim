@@ -19,12 +19,12 @@ violence=false
 descent="unilineal" # "unilineal" or "bilateral"
 descent_rule="patrilineal" # "patrilineal" or "matrilineal"
 nb_villages=5
-nb_lin=3 # nb of lineages -> doesn't make sense for bilateral descent but usefull to normalize villages' sizes
-K=100 # carrying capacity per lineage
+nb_group=3 # nb of groups -> doesn't make sense for bilateral descent but usefull to normalize villages' sizes
+K=100 # carrying capacity per group
 polygyny="F"
 supermale="F"
 tPOLY="F"
-declare -i K_total=$nb_villages*$nb_lin*$K # total carrying capacity
+declare -i K_total=$nb_villages*$nb_group*$K # total carrying capacity
 declare -i K_total_o=2*K_total # total carrying capacity in simulations with outgroup
 
 ########## EXTINCTION RATE IN CASE OF VIOLENCE ###########
@@ -37,7 +37,6 @@ sigma=0.1
 growth_rate=0.01 #0.01 # growth rate of villages and outgroup, if 0 : population has a constant size
 sample_size=20
 pseudohap=False
-lin_mark='F' # if T, ancestral lineages are marked so that their descendance can be tracked through time
 nbsimu=200 # nb of simulations
 cores=40
 
@@ -50,15 +49,15 @@ echo "Starting simulations"
 cd $dir
 vl="F"
 rf="F"
-nameDir="Patrilineal_strict2relaxed"
-path=$descent/regular/r=$growth_rate/sigma=$sigma/FT=$fission_threshold
+nameDir="patrilineal_strict2relaxed"
+path=$descent/extended/r=$growth_rate/sigma=$sigma/FT=$fission_threshold
 
 rm -rf $dir/Tables/Simulations_metrics/$path/$nameDir
 mkdir -p $dir/Tables/Simulations_metrics/$path/$nameDir
-echo "'Replicat'    'Generation'    'N_ind'    'Nb_of_fissions'    'Nb_of_extinctions'    'Nb_of_lineages'    'fathers'    'Nb_indiv_per_lin'    'var_nb_ind_per_lin'    'Nb_women_per_lin'    'mothers'    'failed_couples'    'singleInd'	'Nb_children_per_couple'    'var_nb_children_per_couple'    'mean_lin_depth'    'var_lin_depth'    'mean_migrant_ratio'    'var_migrant_ratio' 'meanFissionTime' 'varFissionTime'" > $dir/Tables/Simulations_metrics/$path/$nameDir/metrics.txt
-echo "'Replicat'	'Generation'	'Village'	'Lineage'	'Nb_children'	'Growth_rate'	'Proba_lin'	'Size'" > $dir/Tables/Simulations_metrics/$path/$nameDir/proba_lin.txt
+echo "'Replicat'    'Generation'    'N_ind'    'Nb_of_fissions'    'Nb_of_extinctions'    'Nb_of_groups'    'fathers'    'Nb_indiv_per_group'    'var_nb_ind_per_group'    'Nb_women_per_group'    'mothers'    'failed_couples'    'singleInd'	'Nb_children_per_couple'    'var_nb_children_per_couple'    'mean_group_depth'    'var_group_depth'    'mean_migrant_ratio'    'var_migrant_ratio' 'meanFissionTime' 'varFissionTime'" > $dir/Tables/Simulations_metrics/$path/$nameDir/metrics.txt
+echo "'Replicat'	'Generation'	'Village'	'group'	'Nb_children'	'Growth_rate'	'Proba_group'	'Size'" > $dir/Tables/Simulations_metrics/$path/$nameDir/proba_group.txt
 echo "'Replicat'	'Generation'	'Village'	'growth_rate'	'var_growth_rate'" > $dir/Tables/Simulations_metrics/$path/$nameDir/growthRates.txt
-echo "'Replicat'	'Generation'	'Lineage'	'nChildren'" > $dir/Tables/Simulations_metrics/$path/$nameDir/nChildrenPerCouple.txt
+echo "'Replicat'	'Generation'	'group'	'nChildren'" > $dir/Tables/Simulations_metrics/$path/$nameDir/nChildrenPerCouple.txt
 echo "'Replicat'    'Generation'    'GroupDepth'" > $dir/Tables/Simulations_metrics/$path/$nameDir/groupDepth.txt
 echo "'Replicat'	'Generation'	'Step'	'nMales'	'nInds'	'sexRatio'" > $dir/Tables/Simulations_metrics/$path/$nameDir/sexRatio.txt
 
@@ -69,7 +68,7 @@ cd $dir/Simulations_folders/$path/$nameDir/
 
 ## Replace parameters in the slim file ##
 
-cat $dir/SLiM_scripts/strict2relaxed.slim | sed "s/bash_Num_villages/${nb_villages}/g;s/bash_carrying_capacity/${K}/g;s/bash_chr_size/${chr_size}/g;s/bash_random_fission/${rf}/g;s/bash_fission_threshold/${fission_threshold}/g;s/bash_pM/${pM}/g;s/bash_violence/${vl}/g;s/bash_extinction_rate/${e}/g;s/bash_mf_ratio/${mf}/g;s/bash_mm_ratio/${mm}/g;s/bash_descent_rule/${descent_rule}/g;s/bash_sd/${sd}/g;s/bash_growth_rate/${growth_rate}/g;s/bash_polygyny/${polygyny}/g;s/bash_t_polygyny/${tPOLY}/g;s/bash_supermale/${supermale}/g;s/bash_transmission/${transmission}/g;s/bash_lin_mark/${lin_mark}/g;s/bash_dir_table/${nameDir}/g" > "islandmodel.slim"
+cat $dir/SLiM_scripts/strict2relaxed.slim | sed "s/bash_wd/${dir}/g;s/bash_Num_villages/${nb_villages}/g;s/bash_carrying_capacity/${K}/g;s/bash_chr_size/${chr_size}/g;s/bash_random_fission/${rf}/g;s/bash_fission_threshold/${fission_threshold}/g;s/bash_pM/${pM}/g;s/bash_violence/${vl}/g;s/bash_extinction_rate/${e}/g;s/bash_mf_ratio/${mf}/g;s/bash_mm_ratio/${mm}/g;s/bash_descent_rule/${descent_rule}/g;s/bash_sd/${sd}/g;s/bash_growth_rate/${growth_rate}/g;s/bash_polygyny/${polygyny}/g;s/bash_t_polygyny/${tPOLY}/g;s/bash_supermale/${supermale}/g;s/bash_transmission/${transmission}/g;s/bash_dir_table/${nameDir}/g" > "islandmodel.slim"
 
 
 for i in $(seq 1 1 $nbsimu)
@@ -83,7 +82,7 @@ if $burnin; then
 	for i in $(seq 1 1 $nbsimu)
 	do	
 		cd $dir/Simulations_folders/$path/$nameDir/$i
-		cat $dir/SLiM_scripts/burnin.slim | sed "s/bash_Num_villages/${nb_villages}/g;s/bash_Num_lin_per_v/${nb_lin}/g;s/bash_total_carrying_capacity/${K_total}/g;s/bash_carrying_capacity/${K}/g;s/bash_chr_size/${chr_size}/g;s/bash_descent/${descent}/g;s/bash_Num_replicat/${i}/g" > "burnin_${i}.slim"
+		cat $dir/SLiM_scripts/burnin.slim | sed "s/bash_wd/${dir}/g;s/bash_Num_villages/${nb_villages}/g;s/bash_Num_group_per_v/${nb_group}/g;s/bash_total_carrying_capacity/${K_total}/g;s/bash_carrying_capacity/${K}/g;s/bash_chr_size/${chr_size}/g;s/bash_descent/${descent}/g;s/bash_Num_replicat/${i}/g" > "burnin_${i}.slim"
 		echo "slim $i/burnin_${i}.slim"
 		cd ..
 	done > launcher.txt
@@ -114,15 +113,12 @@ cd $dir/Simulations_folders/$path/$nameDir/
 echo "Subset trees"
 STARTTIME2=$(date +%s)
 
+generations=$(seq 0 20 200)
+
+cd $dir/Simulations_folders/$path/$nameDir/
 for i in $(seq 1 1 $nbsimu)
 do
-	cd $dir/Simulations_folders/$path/$nameDir/
-
-	if [ "$descent" = "bilateral" ]; then
-        echo "python $dir/Subset_trees/subset_trees_villages_bilateral_descent.py -s $dir/Simulations_folders/$path/$nameDir/ -rep $i --sample-size $sample_size -K $K_total -o $dir/Simulations_folders/$path/$nameDir/$i/ > $i/outputPy${i}.txt"
-	else
-		echo "python $dir/Subset_trees/subset_trees_villages_unilineal_descent.py -s $dir/Simulations_folders/$path/$nameDir/ -rep $i --sample-size $sample_size -K $K_total -og False -d $descent_rule -l $lin_mark -o $dir/Simulations_folders/$path/$nameDir/$i/ -t $dir/Tables/Simulations_metrics/$path/$nameDir > $i/outputPy${i}.txt"
-	fi
+	echo "python $dir/Subset_trees/subset_trees_villages_unilineal_descent.py -s $dir/Simulations_folders/$path/$nameDir/ -rep $i -g generations --sample-size $sample_size -K $K_total -og False -d $descent_rule -o $dir/Simulations_folders/$path/$nameDir/$i/ -t $dir/Tables/Simulations_metrics/$path/$nameDir > $i/outputPy${i}.txt"
 done > launcher.txt
 parallel -a launcher.txt -j $cores
 
@@ -155,7 +151,7 @@ echo "It takes $(($ENDTIME - $STARTTIME4)) seconds to complete this task"
 echo "Write .nex files"
 STARTTIME3=$(date +%s)
 
-cd $dir/BEAST/$descent/regular/
+cd $dir/BEAST/$descent/extended/
 
 rm -rf $dir/BEAST/$path/$nameDir
 mkdir -p $dir/BEAST/$path/$nameDir

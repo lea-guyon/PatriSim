@@ -38,7 +38,7 @@ f_out6 = open("Pi_mito_Y_mean_by_rep.txt", 'w') # file containing means of Pi(Y/
 header=['mf/m', 'Gen', 'Pi', 'Theta', 'Nb_SNPs']
 print('\t'.join(header), file=f_out6)
 
-generations = [0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220]
+generations = [0, 20, 40, 60, 80, 100]
 
 for rep in range (1, 201):
 	for gen in generations :

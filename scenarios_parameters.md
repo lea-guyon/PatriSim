@@ -6,10 +6,9 @@ descent="bilateral"
 nb_villages=5  
 nb_groups=3  
 K=100  
-polygyny="F"
-supermale="F"
-declare -i K_total=$nb_villages*$nb_groups*$K
-mf=0.1
+polygyny="F" \
+declare -i K_total=$nb_villages*$nb_groups*$K  \
+mf=0.1 \
 mm=0  
 growth_rate=0.01   
 sample_size=20  
@@ -21,25 +20,24 @@ nameDir="patrilocal_villages"
 chr_size="c(1e6, 1e6, 1e4)"  
 random_fission=true  
 transmission="full"  
-fission_threshold=150
-pM=0
-friendlyFission="T"  
+fission_threshold=150  \
+pM=0  \
+friendlyFission="T" \
 violence=false  
 descent="unilineal"  
 descent_rule="patrilineal"  
 nb_villages=5  
 nb_groups=3  
 K=100  
-polygyny="F"
-supermale="F"  
+polygyny="F"  \
 declare -i K_total=$nb_villages*$nb_groups*$K   
 
-########## EXTINCTION RATE IN CASE OF VIOLENCE ###########  
+######## EXTINCTION RATE IN CASE OF VIOLENCE ########  \
 e=0.15   
-#####################################################  
+#############################################
 
-mf=0.1
-mm=0
+mf=0.1 \
+mm=0 \
 sigma=0  
 growth_rate=0.01  
 sample_size=20  
@@ -51,8 +49,8 @@ nameDir="patrilineal_villages_a"
 chr_size="c(1e6, 1e6, 1e4)"   
 random_fission=true   
 transmission="full"  
-fission_threshold=150
-pM=0 
+fission_threshold=150 \
+pM=0 \
 friendlyFission="T"  
 violence=true  
 descent="unilineal"  
@@ -60,15 +58,14 @@ descent_rule="patrilineal"
 nb_villages=5  
 nb_groups=3  
 K=100  
-polygyny="F"
-supermale="F"  
+polygyny="F" \
 declare -i K_total=$nb_villages*$nb_groups*$K   
 
-########## EXTINCTION RATE IN CASE OF VIOLENCE ###########  
-e=0.15  
-#####################################################
+######## EXTINCTION RATE IN CASE OF VIOLENCE ########  \
+e=0.15   
+#############################################
 
-mf=0.1
+mf=0.1 \
 mm=0  
 sigma=0  
 growth_rate=0.01   
@@ -81,8 +78,8 @@ nameDir="patrilineal_villages_b"
 chr_size="c(1e6, 1e6, 1e4)"  
 random_fission=false  
 transmission="full"  
-fission_threshold=150
-pM=0
+fission_threshold=150 \
+pM=0 \
 friendlyFission="T"  
 violence=false  
 descent="unilineal"  
@@ -90,13 +87,12 @@ descent_rule="patrilineal"
 nb_villages=5  
 nb_groups=3  
 K=100  
-polygyny="F"
-supermale="F"  
+polygyny="F" \
 declare -i K_total=$nb_villages*$nb_groups*$K  
 
-########## EXTINCTION RATE IN CASE OF VIOLENCE ###########  
-e=0.15  
-#####################################################
+######## EXTINCTION RATE IN CASE OF VIOLENCE ########  \
+e=0.15   
+#############################################
 
 mf=0.1
 mm=0  
@@ -111,8 +107,8 @@ nameDir="patrilineal_villages_c"
 chr_size="c(1e6, 1e6, 1e4)"  
 random_fission=false  
 transmission="full"  
-fission_threshold=150
-pM=0
+fission_threshold=150 \
+pM=0 \
 friendlyFission="T"  
 violence=true  
 descent="unilineal"  
@@ -120,17 +116,16 @@ descent_rule="patrilineal"
 nb_villages=5  
 nb_groups=3  
 K=100  
-polygyny="F"
-supermale="F"  
+polygyny="F" \
 declare -i K_total=$nb_villages*$nb_groups*$K   
 
-########## EXTINCTION RATE IN CASE OF VIOLENCE ###########  
-e=0.15  
-#####################################################
+######## EXTINCTION RATE IN CASE OF VIOLENCE ########  \
+e=0.15   
+#############################################
 
-mf=0.1
-mm=0 
-sigma=0 
+mf=0.1 \
+mm=0 \
+sigma=0 \
 growth_rate=0.01  
 sample_size=20  
 nbsimu=200   
@@ -141,8 +136,8 @@ nameDir="patrilineal_villages_e"
 chr_size="c(1e6, 1e6, 1e4)"  
 random_fission=true  
 transmission="full"  
-fission_threshold=150
-pM=0
+fission_threshold=150 \
+pM=0 \
 friendlyFission="T"  
 violence=false  
 descent="unilineal"  
@@ -150,16 +145,15 @@ descent_rule="patrilineal"
 nb_villages=5  
 nb_groups=3  
 K=100  
-polygyny="F"
-supermale="F"  
+polygyny="F" \
 declare -i K_total=$nb_villages*$nb_groups*$K   
 
-########## EXTINCTION RATE IN CASE OF VIOLENCE ###########  
-e=0.15  
-#####################################################
+######## EXTINCTION RATE IN CASE OF VIOLENCE ########  \
+e=0.15   
+#############################################
 
-mf=0.1
-mm=0 
+mf=0.1 \
+mm=0 \
 sigma=0.1  
 growth_rate=0.01  
 sample_size=20  
@@ -171,8 +165,8 @@ nameDir="patrilineal_villages_d"
 chr_size="c(1e6, 1e6, 1e4)"  
 random_fission=true  
 transmission="full"  
-fission_threshold=150
-pM=1 
+fission_threshold=150 \
+pM=1 \
 friendlyFission="T"  
 violence=true  
 descent="unilineal"  
@@ -180,16 +174,15 @@ descent_rule="patrilineal"
 nb_villages=5  
 nb_groups=3  
 K=100  
-polygyny="F"
-supermale="F"  
+polygyny="F" \
 declare -i K_total=$nb_villages*$nb_groups*$K   
 
-########## EXTINCTION RATE IN CASE OF VIOLENCE ###########  
-e=0.15  
-#####################################################
+######## EXTINCTION RATE IN CASE OF VIOLENCE ########  \
+e=0.15   
+#############################################
 
-mf=0.1
-mm=0
+mf=0.1 \
+mm=0 \
 sigma=0.1  
 growth_rate=0.01   
 sample_size=20  
@@ -201,8 +194,8 @@ nameDir="patrilineal_villages_f"
 chr_size="c(1e6, 1e6, 1e4)"  
 random_fission=false  
 transmission="full"  
-fission_threshold=150
-pM=0 
+fission_threshold=150 \
+pM=0 \
 friendlyFission="T"  
 violence=false  
 descent="unilineal"  
@@ -210,16 +203,15 @@ descent_rule="patrilineal"
 nb_villages=5  
 nb_groups=3  
 K=100  
-polygyny="F"
-supermale="F"  
+polygyny="F" \
 declare -i K_total=$nb_villages*$nb_groups*$K   
 
-########## EXTINCTION RATE IN CASE OF VIOLENCE ###########  
-e=0.15  
-#####################################################
+######## EXTINCTION RATE IN CASE OF VIOLENCE ########  \
+e=0.15   
+#############################################
 
-mf=0.1
-mm=0
+mf=0.1 \
+mm=0 \
 sigma=0.1  
 growth_rate=0.01  
 sample_size=20  
@@ -231,8 +223,8 @@ nameDir="patrilineal_villages_g"
 chr_size="c(1e6, 1e6, 1e4)"  
 random_fission=false  
 transmission="full"  
-fission_threshold=150
-pM=0
+fission_threshold=150 \
+pM=0 \
 friendlyFission="T"  
 violence=true  
 descent="unilineal"  
@@ -240,16 +232,15 @@ descent_rule="patrilineal"
 nb_villages=5  
 nb_groups=3  
 K=100  
-polygyny="F"
-supermale="F"  
+polygyny="F" \
 declare -i K_total=$nb_villages*$nb_groups*$K   
 
-########## EXTINCTION RATE IN CASE OF VIOLENCE ###########  
-e=0.15  
-#####################################################  
+######## EXTINCTION RATE IN CASE OF VIOLENCE ########  \
+e=0.15   
+#############################################
 
-mf=0.1
-mm=0
+mf=0.1 \
+mm=0 \
 sigma=0.1  
 growth_rate=0.01  
 sample_size=20  

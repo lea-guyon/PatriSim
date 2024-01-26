@@ -15,11 +15,10 @@ def parse_args() :
 	parser.add_argument('-K', '--carrying-capacity', dest='K', type = int, required=True, help='Total carrying capacity of the simulation')
 	parser.add_argument('-gen', '--generation', dest='gen', type = int, required=True, help='Generation')
 	parser.add_argument('-o', '--output', dest = 'output', required = True, help = 'Output file path')
-	parser.add_argument('-t', '--output-table', dest = 'output_table', required = True, help = 'Output table path')
 	args = parser.parse_args()
-	return args.path_source, args.rep, args.sample_size, args.K, args.gen, args.output, args.output_table
+	return args.path_source, args.rep, args.sample_size, args.K, args.gen, args.output
 
-path_source, rep, sample_size, K, gen, output, output_table = parse_args()
+path_source, rep, sample_size, K, gen, output = parse_args()
 
 ###### Exceptions ######
 if sample_size % 2 != 0 :
@@ -143,33 +142,6 @@ mutated_ts_mito = mutated_ts_mito.simplify(nodes_mito)
 
 reference_sequence_Y = tskit.random_nucleotides(mutated_ts_Y.sequence_length)
 reference_sequence_mito = tskit.random_nucleotides(mutated_ts_mito.sequence_length)
-
-# Compute allele frequency spectrum
-os.chdir(output_table)
-afs_Y = mutated_ts_Y.allele_frequency_spectrum(polarised=True, span_normalise=False, mode='branch')
-
-if rep == 1 :
-	colnames = ["Replicat"]
-	for nton in range(len(afs_Y)):
-		colnames.append("SFS" + str(nton))
-	f_out = open('allele_freq_spectrum_Y.csv', 'w')
-	print('\t'.join(colnames), file = f_out)
-
-f_out = open('allele_freq_spectrum_Y.csv', 'a')
-print('\t'.join(['{0}'.format(rep)] + [str(i) for i in afs_Y.tolist()]), file = f_out)
-
-afs_mito = mutated_ts_mito.allele_frequency_spectrum(polarised=True, span_normalise=False, mode='branch')
-
-if rep == 1 :
-	colnames = ["Replicat"]
-	for nton in range(len(afs_mito)):
-		colnames.append("SFS" + str(nton))
-	f_out = open('allele_freq_spectrum_mito.csv', 'w')
-	print('\t'.join(colnames), file = f_out)
-
-f_out = open('allele_freq_spectrum_mito.csv', 'a')
-print('\t'.join(['{0}'.format(rep)] + [str(i) for i in afs_mito.tolist()]), file = f_out)
-f_out.close()
 
 ###### Output .nex files ######
 os.chdir(output)

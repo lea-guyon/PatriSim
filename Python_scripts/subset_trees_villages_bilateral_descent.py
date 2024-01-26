@@ -10,13 +10,14 @@ def parse_args() :
 	parser = argparse.ArgumentParser(description='Split trees into A, X, Y and mito and generate vcf files')
 	parser.add_argument('-s', '--source', dest='path_source', required=True, help='Source directory')
 	parser.add_argument('-rep', '--replicat', dest='rep', type = int, required=True, help='Replicate number')
+	parser.add_argument('-g', dest='generations', type=list, resuired=True, help='List of generation times when VCF files are output')
 	parser.add_argument('--sample-size', dest='sample_size', type = int, required=True, help='Number (even) of individuals sampled per village')
 	parser.add_argument('-K', '--carrying-capacity', dest='K', type = int, required=True, help='Total carrying capacity of the simulation')
 	parser.add_argument('-o', '--output', dest = 'output', required = True, help = 'Output file path')
 	args = parser.parse_args()
-	return args.path_source, args.rep, args.sample_size, args.K, args.output
+	return args.path_source, args.rep, args.g, args.sample_size, args.K, args.output
 
-path_source, rep, sample_size, K, output = parse_args()
+path_source, rep, generations, sample_size, K, output = parse_args()
 
 # Exceptions
 if sample_size % 2 != 0 :
@@ -24,8 +25,6 @@ if sample_size % 2 != 0 :
 
 # ignore msprime warning for time units mismatch
 warnings.simplefilter('ignore', msprime.TimeUnitsMismatchWarning)
-
-generations = [0, 20, 40, 60, 80, 100]
 
 for gen in generations : 
 	os.chdir(path_source)
@@ -119,17 +118,17 @@ for gen in generations :
 	nodes_M = []
 	nodes_F = []
 
-	populations = set(list([ind.metadata['subpopulation'] for ind in ts_A.individuals()]))
-	for subpop in populations :
+	villages = set(list([ind.metadata['subpopulation'] for ind in ts_A.individuals()]))
+	for village in villages :
 		# select individuals belonging to the subpopulation 
 		indF, indM = [], [] # initialize list of women and list of men
 		for ind in ts.individuals() :
-			if ind.metadata['subpopulation'] == subpop :
+			if ind.metadata['subpopulation'] == village :
 				if ind.metadata['sex'] == 0 :
 					indF += [ind.id]
 				else :
 					indM += [ind.id]
-		print(subpop, len(indM))
+		print(village, len(indM))
 		# sample N men and N women per village
 		N = int(sample_size/2)
 		if len(indM) < N or len(indF) < N :
@@ -178,22 +177,22 @@ for gen in generations :
 
 	# Output VCFs 
 	# for each subpopulation
-	for subpop in populations :
+	for village in villages :
 		# select individuals belonging to the subpopulation (use _recap file because using mslim alters 'metadata')
-		indiv_A = [ind.id for ind in ind_A if ind.metadata['subpopulation'] == subpop]
-		with open(str(output) + "Sim_A_{0}_{1}_gen_{2}_subpop_{3}.vcf".format(mf, rep, gen, subpop), "w") as vcf_file:
+		indiv_A = [ind.id for ind in ind_A if ind.metadata['subpopulation'] == village]
+		with open(str(output) + "Sim_A_{0}_{1}_gen_{2}_village_{3}.vcf".format(mf, rep, gen, village), "w") as vcf_file:
 			mutated_ts_A.write_vcf(vcf_file, contig_id = 'A', individuals = indiv_A)
 
 		# idem for X, Y and mito
-		indiv_X = [ind.id for ind in ind_X if ind.metadata['subpopulation'] == subpop]
-		with open(str(output) + "Sim_X_{0}_{1}_gen_{2}_subpop_{3}.vcf".format(mf, rep, gen, subpop), "w") as vcf_file:
+		indiv_X = [ind.id for ind in ind_X if ind.metadata['subpopulation'] == village]
+		with open(str(output) + "Sim_X_{0}_{1}_gen_{2}_village_{3}.vcf".format(mf, rep, gen, village), "w") as vcf_file:
 			mutated_ts_X.write_vcf(vcf_file, contig_id = 'X', individuals = indiv_X)
 
-		indiv_Y = [ind.id for ind in ind_Y if ind.metadata['subpopulation'] == subpop]
-		with open(str(output) + "Sim_Y_{0}_{1}_gen_{2}_subpop_{3}.vcf".format(mf, rep, gen, subpop), "w") as vcf_file:
+		indiv_Y = [ind.id for ind in ind_Y if ind.metadata['subpopulation'] == village]
+		with open(str(output) + "Sim_Y_{0}_{1}_gen_{2}_village_{3}.vcf".format(mf, rep, gen, village), "w") as vcf_file:
 			mutated_ts_Y.write_vcf(vcf_file, contig_id = 'Y', individuals = indiv_Y)
 
-		indiv_mito = [ind.id for ind in ind_mito if ind.metadata['subpopulation'] == subpop]
-		with open(str(output) + "Sim_Mito_{0}_{1}_gen_{2}_subpop_{3}.vcf".format(mf, rep, gen, subpop), "w") as vcf_file:
+		indiv_mito = [ind.id for ind in ind_mito if ind.metadata['subpopulation'] == village]
+		with open(str(output) + "Sim_Mito_{0}_{1}_gen_{2}_village_{3}.vcf".format(mf, rep, gen, village), "w") as vcf_file:
 			mutated_ts_mito.write_vcf(vcf_file, contig_id = 'Mito', individuals = indiv_mito)
 

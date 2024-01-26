@@ -10,15 +10,16 @@ def parse_args() :
 	parser = argparse.ArgumentParser(description='Split trees into A, X, Y and mito and generate vcf files')
 	parser.add_argument('-s', '--source', dest='path_source', required=True, help='Source directory')
 	parser.add_argument('-rep', '--replicat', dest='rep', type = int, required=True, help='Replicate number')
+	parser.add_argument('-g', '--gen', dest='generations', type=list, resuired=True, help='List of generation times when VCF files are output')
 	parser.add_argument('--sample-size', dest='sample_size', type = int, required=True, help='Number (even) of individuals sampled per village')
 	parser.add_argument('-K', '--carrying-capacity', dest='K', type = int, required=True, help='Total carrying capacity of the simulation')
 	parser.add_argument('-d', '--descent', dest='descent', required = True, help='Either "patrilineal" or "matrilineal"')
 	parser.add_argument('-o', '--output', dest = 'output', required = True, help = 'Output file path')
 	parser.add_argument('-t', '--output-table', dest = 'output_table', required = True, help = 'Output table path')
 	args = parser.parse_args()
-	return args.path_source, args.rep, args.sample_size, args.K, args.descent, args.output, args.output_table
+	return args.path_source, args.rep, args.g, args.sample_size, args.K, args.descent, args.output, args.output_table
 
-path_source, rep, sample_size, K, descent, output, output_table = parse_args()
+path_source, rep, generations, sample_size, K, descent, output, output_table = parse_args()
 
 ###### Exceptions ######
 if sample_size % 2 != 0 :
@@ -27,7 +28,6 @@ if sample_size % 2 != 0 :
 # ignore msprime warning for time units mismatch
 warnings.simplefilter('ignore', msprime.TimeUnitsMismatchWarning)
 
-generations = [0, 20, 40, 60, 80, 100, 220]
 chr_size = [1e6, 1e6, 1e4]
 
 # change seed for each simulation

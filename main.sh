@@ -21,7 +21,6 @@ nb_villages=5
 nb_groups=3 # nb of descent groups -> does not make sense for bilateral descent but usefull to normalize villages' sizes
 K=100 # carrying capacity per group
 polygyny="F" # "F" or "T"
-supermale="F" # "F" or "T"
 declare -i K_total=$nb_villages*$nb_groups*$K # total carrying capacity
 
 ########## EXTINCTION RATE IN CASE OF VIOLENCE ###########
@@ -60,7 +59,7 @@ if [ "$descent" = "bilateral" ]; then
 	path=$descent/regular/r=$growth_rate
 	rm -rf $dir/Tables/metrics/$path/$nameDir
 	mkdir -p $dir/Tables/metrics/$path/$nameDir
-	echo "'Replicat'	'Generation'	'mean_nb_children_per_couple'	'var_nb_children_per_couple'	'mothers'	'fathers' 'singleInd'	'polyFemales'	'polyMales'	'monoMales'	'singleMales'	'meanChildrenPerMale'	'varChildrenPerMale'	'maxChildrenM'	'meanChildrenPerFemale'	'varChildrenPerFemale'	'maxChildrenF'" > $dir/Tables/metrics/$path/$nameDir/metrics.txt
+	echo "'Replicat'	'Generation'	'mean_nb_children_per_couple'	'var_nb_children_per_couple'	'mothers'	'fathers' 'singleInd'" > $dir/Tables/metrics/$path/$nameDir/metrics.txt
 else
 	if [ $vl = "T" ]; then
 		path=$descent/regular/r=$growth_rate/sigma=$sigma/FT=$fission_threshold/e=$e
@@ -69,10 +68,11 @@ else
 	fi
 	rm -rf $dir/Tables/metrics/$path/$nameDir
 	mkdir -p $dir/Tables/metrics/$path/$nameDir
-	echo "'Replicat'    'Generation'    'N_ind'    'Nb_of_fissions'    'Nb_of_extinctions'    'Nb_of_lineages'    'fathers'    'Nb_indiv_per_lin'    'var_nb_ind_per_lin'    'Nb_women_per_lin'    'mothers'    'failed_couples'    'singleInd'	'Nb_children_per_couple'    'var_nb_children_per_couple'    'mean_lin_depth'    'var_lin_depth'    'mean_migrant_ratio'    'var_migrant_ratio' 'meanFissionTime' 'varFissionTime'" > $dir/Tables/metrics/$path/$nameDir/metrics.txt
-	echo "'Replicat'	'Generation'	'Lineage'	'nChildren'" > $dir/Tables/metrics/$path/$nameDir/nChildrenPerCouple.txt
+	echo "'Replicat'    'Generation'    'N_ind'    'Nb_of_fissions'    'Nb_of_extinctions'    'Nb_of_groups'    'fathers'    'Nb_indiv_per_group'    'var_nb_ind_per_group'    'Nb_women_per_group'    'mothers'    'failed_couples'    'singleInd'	'Nb_children_per_couple'    'var_nb_children_per_couple'    'mean_group_depth'    'var_group_depth'    'mean_migrant_ratio'    'var_migrant_ratio' 'meanFissionTime' 'varFissionTime'" > $dir/Tables/metrics/$path/$nameDir/metrics.txt
+	echo "'Replicat'	'Generation'	'Group'	'nChildren'" > $dir/Tables/metrics/$path/$nameDir/nChildrenPerCouple.txt
 	echo "'Replicat'    'Generation'    'GroupDepth'" > $dir/Tables/metrics/$path/$nameDir/groupDepth.txt
 	echo "'Replicat'    'Generation'    'FissionTime'" > $dir/Tables/metrics/$path/$nameDir/fissionTime.txt
+	echo "'Replicat'	'Generation'	'Step'	'nMales'	'nInds'	'sexRatio'" > $dir/Tables/metrics/$path/$nameDir/sexRatio.txt
 fi
 
 cd simulations/$path/$nameDir/
@@ -80,9 +80,9 @@ cd simulations/$path/$nameDir/
 ## Replace parameters in the slim file ##
 
 if [ "$descent" = "bilateral" ]; then
-	cat $dir/SLiM_models/bilateral_descent.slim | sed "s/bash_Num_villages/${nb_villages}/g;s/bash_chr_size/${chr_size}/g;s/bash_mf_ratio/${mf}/g;s/bash_mm_ratio/${mm}/g;s/bash_growth_rate/${growth_rate}/g;s/bash_namedir/${nameDir}/g;s/bash_polygyny/${polygyny}/g;s/bash_supermale/${supermale}/g" > "islandmodel.slim"
+	cat $dir/SLiM_models/bilateral_descent.slim | sed "s/bash_wd/${dir}/g;s/bash_Num_villages/${nb_villages}/g;s/bash_chr_size/${chr_size}/g;s/bash_mf_ratio/${mf}/g;s/bash_mm_ratio/${mm}/g;s/bash_growth_rate/${growth_rate}/g;s/bash_namedir/${nameDir}/g;s/bash_polygyny/${polygyny}/g" > "islandmodel.slim"
 else
-    cat $dir/SLiM_models/unilineal_descent.slim | sed "s/bash_Num_villages/${nb_villages}/g;s/bash_carrying_capacity/${K}/g;s/bash_chr_size/${chr_size}/g;s/bash_random_fission/${rf}/g;s/bash_fission_threshold/${fission_threshold}/g;s/bash_pM/${pM}/g;s/bash_violence/${vl}/g;s/bash_extinction_rate/${e}/g;s/bash_mf_ratio/${mf}/g;s/bash_mm_ratio/${mm}/g;s/bash_descent_rule/${descent_rule}/g;s/bash_sigma/${sigma}/g;s/bash_growth_rate/${growth_rate}/g;s/bash_transmission/${transmission}/g;s/bash_namedir/${nameDir}/g;s/bash_polygyny/${polygyny}/g;s/bash_supermale/${supermale}/g" > "islandmodel.slim"
+    cat $dir/SLiM_models/unilineal_descent.slim | sed "s/bash_wd/${dir}/g;s/bash_Num_villages/${nb_villages}/g;s/bash_carrying_capacity/${K}/g;s/bash_chr_size/${chr_size}/g;s/bash_random_fission/${rf}/g;s/bash_fission_threshold/${fission_threshold}/g;s/bash_pM/${pM}/g;s/bash_violence/${vl}/g;s/bash_extinction_rate/${e}/g;s/bash_mf_ratio/${mf}/g;s/bash_mm_ratio/${mm}/g;s/bash_descent_rule/${descent_rule}/g;s/bash_sigma/${sigma}/g;s/bash_growth_rate/${growth_rate}/g;s/bash_transmission/${transmission}/g;s/bash_namedir/${nameDir}/g;s/bash_polygyny/${polygyny}/g" > "islandmodel.slim"
 fi
 
 ## Create a new file for each simulation ##
@@ -97,7 +97,7 @@ if $burnin; then
 	for i in $(seq 1 1 $nbsimu)
 	do	
 		cd $dir/simulations/$path/$nameDir/$i
-		cat $dir/SLiM_scripts/burnin.slim | sed "s/bash_Num_villages/${nb_villages}/g;s/bash_Num_lin_per_v/${nb_lin}/g;s/bash_total_carrying_capacity/${K_total}/g;s/bash_carrying_capacity/${K}/g;s/bash_chr_size/${chr_size}/g;s/bash_descent/${descent}/g;s/bash_Num_replicat/${i}/g" > "burnin_${i}.slim"
+		cat $dir/SLiM_scripts/burnin.slim | sed "s/bash_wd/${dir}/g;s/bash_Num_villages/${nb_villages}/g;s/bash_nGroupsPerVillage/${nb_groups}/g;s/bash_total_carrying_capacity/${K_total}/g;s/bash_carrying_capacity/${K}/g;s/bash_chr_size/${chr_size}/g;s/bash_descent/${descent}/g;s/bash_Num_replicat/${i}/g" > "burnin_${i}.slim"
 		echo "slim $i/burnin_${i}.slim"
 		cd ..
 	done > launcher.txt
@@ -128,14 +128,16 @@ cd $dir/simulations/$path/$nameDir/
 echo "output VCF files"
 STARTTIME2=$(date +%s)
 
+generations=$(seq 0 20 100)
+
 for i in $(seq 1 1 $nbsimu)
 do
 	cd $dir/simulations/$path/$nameDir/
 
 	if [ "$descent" = "bilateral" ]; then
-        echo "python $dir/Python_scripts/subset_trees_villages_bilateral_descent.py -s $dir/simulations/$path/$nameDir/ -rep $i --sample-size $sample_size -K $K_total -o $dir/simulations/$path/$nameDir/$i/ > $i/outputPy${i}.txt"
+        echo "python $dir/Python_scripts/subset_trees_villages_bilateral_descent.py -s $dir/simulations/$path/$nameDir/ -rep $i -g generations --sample-size $sample_size -K $K_total -o $dir/simulations/$path/$nameDir/$i/ > $i/outputPy${i}.txt"
 	else
-		echo "python $dir/Python_scripts/subset_trees_villages_unilineal_descent.py -s $dir/simulations/$path/$nameDir/ -rep $i --sample-size $sample_size -K $K_total -d $descent_rule -o $dir/simulations/$path/$nameDir/$i/ -t $dir/Tables/metrics/$path/$nameDir > $i/outputPy${i}.txt"
+		echo "python $dir/Python_scripts/subset_trees_villages_unilineal_descent.py -s $dir/simulations/$path/$nameDir/ -rep $i -g generations --sample-size $sample_size -K $K_total -d $descent_rule -o $dir/simulations/$path/$nameDir/$i/ -t $dir/Tables/metrics/$path/$nameDir > $i/outputPy${i}.txt"
 	fi
 done > launcher.txt
 parallel -a launcher.txt -j $cores
@@ -180,7 +182,7 @@ echo "Generate .nex files"
 for i in $(seq 1 1 $nbsimu)
 do
 	if [ "$descent" = "bilateral" ]; then
-        echo "python $dir/Python_scripts/write_nexus_bilateral.py -s $dir/simulations/$path/$nameDir/ -rep $i --sample-size 20 -K $K_total -gen 100 -o $dir/BEAST/$path/$nameDir/$i/ -t $dir/Tables/metrics/$path/$nameDir/ > $dir/simulations/$path/$nameDir/$i/outputPyNex${i}.txt"
+        echo "python $dir/Python_scripts/write_nexus_bilateral.py -s $dir/simulations/$path/$nameDir/ -rep $i --sample-size 20 -K $K_total -gen 100 -o $dir/BEAST/$path/$nameDir/$i/ > $dir/simulations/$path/$nameDir/$i/outputPyNex${i}.txt"
 	else
 		echo "python $dir/Python_scripts/write_nexus.py -s $dir/simulations/$path/$nameDir/ -rep $i --sample-size 20 -K $K_total -gen 100 -o $dir/BEAST/$path/$nameDir/$i/ > $dir/simulations/$path/$nameDir/$i/outputPyNex${i}.txt"
 	fi

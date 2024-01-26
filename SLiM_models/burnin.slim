@@ -6,12 +6,15 @@ initialize() {
 	
 	// output tree sequences
 	initializeTreeSeq();
+
+	// working directory
+	defineConstant("wd", "bash_wd");
 	
 	// number of villages
 	defineConstant("N_VILLAGES", bash_Num_villages);
 	
-	// number of lineages per village
-	defineConstant("N_LIN", bash_nGroupsPerVillage);
+	// number of groups per village
+	defineConstant("N_GROUPS", bash_nGroupsPerVillage);
 	
 	// carrying capacity
 	defineConstant("K_total", bash_total_carrying_capacity);
@@ -52,9 +55,9 @@ initialize() {
 	
 	if (descent == "unilineal") {
 		// parent-children arrays
-		defineConstant("output_patri", "~/Documents/SLiM_model/Burn_in/patrilineal_ID_bash_Num_replicat.txt");
+		defineConstant("output_patri", wd, "/Burn_in/patrilineal_ID_bash_Num_replicat.txt");
 		deleteFile(output_patri);
-		defineConstant("output_matri", "~/Documents/SLiM_model/Burn_in/matrilineal_ID_bash_Num_replicat.txt");
+		defineConstant("output_matri", wd, "/Burn_in/matrilineal_ID_bash_Num_replicat.txt");
 		deleteFile(output_matri);
 	}
 }
@@ -62,22 +65,22 @@ initialize() {
 1 first() {
 	// big panmictic population
 	sim.addSubpop(1, K_total);
-	N = N_VILLAGES * N_LIN;  // total number of lineages
+	N = N_VILLAGES * N_GROUPS;  // total number of groups
 	
 	if (descent == "unilineal") {
-		nLin = 100 * N;  // initialize a large number of lineages
+		nGroup = 100 * N;  // initialize a large number of groups
 	}
 	else {
-		nLin = N_VILLAGES;
+		nGroup = N_VILLAGES;
 	}
 	
-	// create lineages (unilineal descent) or villages (bilateral descent)
-	for (i in 2:nLin) {
+	// create groups (unilineal descent) or villages (bilateral descent)
+	for (i in 2:nGroup) {
 		if (descent == "unilineal") {
 			newPop = sim.addSubpop(i, K);
 		}
 		else {
-			K_village = K * N_LIN;  // number of individuals per village
+			K_village = K * N_GROUPS;  // number of individuals per village
 			newPop = sim.addSubpop(i, K_village);
 		}
 		// kill individuals : there is only one population in the initial state
@@ -310,11 +313,11 @@ early() {
 			writeFile(output_patri, paste(drop(patriDic[row,]), sep = " "), append = T);
 		}
 		
-		filename = paste(c('~/Documents/SLiM_model/Burn_in/villages_unilineal_descent_burn_in_', asString(N_REP), '.trees'), sep = "");
+		filename = paste(c(wd, '/Burn_in/villages_unilineal_descent_burn_in_', asString(N_REP), '.trees'), sep = "");
 	}
 	
 	else {
-		filename = paste(c('~/Documents/SLiM_model/Burn_in/villages_bilateral_descent_burn_in_', asString(N_REP), '.trees'), sep = "");
+		filename = paste(c(wd, '/Burn_in/villages_bilateral_descent_burn_in_', asString(N_REP), '.trees'), sep = "");
 	}
 	
 	// output tree sequences
