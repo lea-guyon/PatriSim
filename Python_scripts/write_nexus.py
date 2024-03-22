@@ -71,42 +71,6 @@ ts_X = ts_X_map[0]
 ts_mito_map = ts_mito.simplify(id_Mito, map_nodes=True, keep_input_roots=True) # mt chr tree + correspondances with the ids of ts
 ts_mito = ts_mito_map[0]
 
-###### Recapitate if there is more than 1 root ######
-"""
-	tsA_max_roots = max(t.num_roots for t in ts_A.trees())
-	if tsA_max_roots > 1 :		
-		if ts_A.num_populations > 99 :
-			print("more than 99 subpopulations")
-			demography = msprime.Demography()
-			demography.add_population(name="p1", initial_size=K)
-			for pop in ts_A.populations():
-				if pop.id == 0 :
-					continue
-				name = pop.metadata['name']
-				demography.add_population(name=name, initial_size=int(K/ts_A.num_populations))
-				#demography.add_population(name=name, initial_size=int(K/(ts_A.num_populations * 2)))
-				demography.add_mass_migration(time=gen, source=name, dest="p1", proportion=1)		
-			ts_A = pyslim.recapitate(ts_A, recombination_rate = 1.1e-8, random_seed = seed, demography = demography)
-		else :
-			recap_ts_A = pyslim.recapitate(ts_A, recombination_rate = 1.1e-8, ancestral_Ne = K, random_seed = seed)
-
-	tsX_max_roots = max(t.num_roots for t in ts_X.trees())
-	if tsX_max_roots > 1 :
-		if ts_X.num_populations > 99 :
-			demography = msprime.Demography()
-			demography.add_population(name="p1", initial_size=3/4*K)
-			for pop in ts_X.populations():
-				if pop.id == 0 :
-					continue
-				name = pop.metadata['name']
-				demography.add_population(name=name, initial_size=int(3*K/(4*ts_X.num_populations)))
-				#demography.add_population(name=name, initial_size=int(3*K/(8*ts_X.num_populations)))
-				demography.add_mass_migration(time=gen, source=name, dest="p1", proportion=1)
-			ts_X = pyslim.recapitate(ts_X, recombination_rate = 1e-8, random_seed = seed, demography = demography) 
-		else :
-			recap_ts_X = pyslim.recapitate(ts_X, recombination_rate = 1e-8, ancestral_Ne = 3/4*K, random_seed = seed)
-"""
-
 ###### Sample individuals ######
 indM, indF = [], []
 M, F = [], []
@@ -163,10 +127,6 @@ nodes_ts_mito = [i for i in nodes_F if i in id_Mito] # nodes' IDs in ts
 nodes_mito = [ts_mito_map[1][i] for i in nodes_ts_mito] # nodes' IDs in recap_ts_mito
 
 ###### Add mutations ######
-"""
-mutated_ts_A = msprime.sim_mutations(recap_ts_A, rate = 2.5e-8, random_seed = seed, model = "jc69", keep = False)
-mutated_ts_X = msprime.sim_mutations(recap_ts_X, rate = 2e-8, random_seed = seed, model = "jc69", keep = False)
-"""
 mutated_ts_Y = msprime.sim_mutations(ts_Y, rate = 2.5e-8, random_seed = seed, model = "jc69", keep = False)
 mutated_ts_mito = msprime.sim_mutations(ts_mito, rate = 5.5e-7, random_seed = seed, model = "jc69", keep = False)
 

@@ -31,7 +31,7 @@ The pipeline requires a standard computer with enough RAM to support the in-memo
 The pipeline is designed to be run on Linux. It has been tested on Ubuntu 20.04.
 
 ### SLiM
-The pipeline requires SLiM v4.0.1. To install SLiM, follow the instructions given in the manual (https://messerlab.org/slim/). 
+The pipeline requires SLiM v4.1. To install SLiM, follow the instructions given in the manual (https://messerlab.org/slim/). 
 
 ### Python dependencies
 To install python (3.8) requirements enter:  

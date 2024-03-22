@@ -82,38 +82,28 @@ for gen in generations :
 
 	###### Recapitate if there is more than 1 root ######
 	tsA_max_roots = max(t.num_roots for t in ts_A.trees())
-	if tsA_max_roots > 1 :		
-		if ts_A.num_populations > 99 :
-			print("more than 99 subpopulations")
-			demography = msprime.Demography()
-			demography.add_population(name="p1", initial_size=K)
-			for pop in ts_A.populations():
-				if pop.id == 0 :
-					continue
-				name = pop.metadata['name']
-				demography.add_population(name=name, initial_size=int(K/ts_A.num_populations))
-				#demography.add_population(name=name, initial_size=int(K/(ts_A.num_populations * 2)))
-				demography.add_mass_migration(time=gen, source=name, dest="p1", proportion=1)		
-			ts_A = pyslim.recapitate(ts_A, recombination_rate = 1.1e-8, random_seed = seed, demography = demography)
-		else :
-			recap_ts_A = pyslim.recapitate(ts_A, recombination_rate = 1.1e-8, ancestral_Ne = K, random_seed = seed)
-
+	if tsA_max_roots > 1 :
+		demography = msprime.Demography()
+		demography.add_population(name="p1", initial_size=K)
+		for pop in ts_A.populations():
+			if pop.id == 0 :
+				continue
+			name = pop.metadata['name']
+			demography.add_population(name=name, initial_size=int(K/ts_A.num_populations))
+			demography.add_mass_migration(time=gen, source=name, dest="p1", proportion=1)
+		print("Recapitate A!")
+		ts_A = pyslim.recapitate(ts_A, recombination_rate = 1.1e-8, random_seed = seed, demography = demography)
 	tsX_max_roots = max(t.num_roots for t in ts_X.trees())
 	if tsX_max_roots > 1 :
-		if ts_X.num_populations > 99 :
-			demography = msprime.Demography()
-			demography.add_population(name="p1", initial_size=3/4*K)
-			for pop in ts_X.populations():
-				if pop.id == 0 :
-					continue
-				name = pop.metadata['name']
-				demography.add_population(name=name, initial_size=int(3*K/(4*ts_X.num_populations)))
-				#demography.add_population(name=name, initial_size=int(3*K/(8*ts_X.num_populations)))
-				demography.add_mass_migration(time=gen, source=name, dest="p1", proportion=1)
-			ts_X = pyslim.recapitate(ts_X, recombination_rate = 1e-8, random_seed = seed, demography = demography) 
-		else :
-			recap_ts_X = pyslim.recapitate(ts_X, recombination_rate = 1e-8, ancestral_Ne = 3/4*K, random_seed = seed)
-
+		demography = msprime.Demography()
+		demography.add_population(name="p1", initial_size=3/4*K)
+		for pop in ts_X.populations():
+			if pop.id == 0 :
+				continue
+			name = pop.metadata['name']
+			demography.add_population(name=name, initial_size=int(3*K/(4*ts_X.num_populations)))
+			demography.add_mass_migration(time=gen, source=name, dest="p1", proportion=1)
+		ts_X = pyslim.recapitate(ts_X, recombination_rate = 1e-8, random_seed = seed, demography = demography)
 	###### Sample individuals ######
 	villages = {} # associate village marker with individuals
 	nodes = []
@@ -183,9 +173,12 @@ for gen in generations :
 	mutated_ts_mito = msprime.sim_mutations(ts_mito, rate = 5.5e-7, random_seed = seed, model = model, keep = False)
 	
 	###### Output VCF files ######
+	A_individuals, Y_individuals, M_individuals = [], [], []
+
 	for village in village_name :
 		# select individuals belonging to the village
 		ind_A = M[village] + F[village]
+		A_individuals.extend(ind_A)
 		with open("Sim_A_{0}_{1}_gen_{2}_village_{3}.vcf".format(mf, rep, gen, village_name[village]), "w") as vcf_file:
 			mutated_ts_A.write_vcf(vcf_file, contig_id = 'A', individuals = ind_A)
 
@@ -197,6 +190,7 @@ for gen in generations :
 		for indiv in mutated_ts_Y.individuals() :
 			if list(indiv.nodes)[0] in nodes_Y[village] :
 				ind_Y.append(indiv.id)
+		Y_individuals.extend(ind_Y)
 		with open("Sim_Y_{0}_{1}_gen_{2}_village_{3}.vcf".format(mf, rep, gen, village_name[village]), "w") as vcf_file:
 			mutated_ts_Y.write_vcf(vcf_file, contig_id = 'Y', individuals = ind_Y)
 
@@ -204,5 +198,22 @@ for gen in generations :
 		for indiv in mutated_ts_mito.individuals() :
 			if list(indiv.nodes)[0] in nodes_mito[village] :
 				ind_mito.append(indiv.id)
+		M_individuals.extend(ind_mito)
 		with open("Sim_Mito_{0}_{1}_gen_{2}_village_{3}.vcf".format(mf, rep, gen, village_name[village]), "w") as vcf_file:
 			mutated_ts_mito.write_vcf(vcf_file, contig_id = 'Mito', individuals = ind_mito)
+	sample_A = random.sample(A_individuals, sample_size)
+	sample_Y = random.sample(Y_individuals, sample_size)
+	sample_M = random.sample(M_individuals, sample_size)
+
+	
+	with open("Sim_A_{0}_{1}_gen_{2}.vcf".format(mf, rep, gen), "w") as vcf_file:
+		mutated_ts_A.write_vcf(vcf_file, contig_id = 'A', individuals = sample_A)
+
+	with open("Sim_X_{0}_{1}_gen_{2}.vcf".format(mf, rep, gen), "w") as vcf_file:
+		mutated_ts_X.write_vcf(vcf_file, contig_id = 'X', individuals = sample_A)
+
+	with open("Sim_Y_{0}_{1}_gen_{2}.vcf".format(mf, rep, gen), "w") as vcf_file:
+		mutated_ts_Y.write_vcf(vcf_file, contig_id = 'Y', individuals = sample_Y)
+
+	with open("Sim_Mito_{0}_{1}_gen_{2}.vcf".format(mf, rep, gen), "w") as vcf_file:
+		mutated_ts_mito.write_vcf(vcf_file, contig_id = 'Mito', individuals = sample_M)

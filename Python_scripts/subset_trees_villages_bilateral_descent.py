@@ -86,33 +86,27 @@ for gen in generations :
 	###### Recapitate if there is more than 1 root ######
 	tsA_max_roots = max(t.num_roots for t in ts_A.trees())
 	if tsA_max_roots > 1 :
-		if ts_A.num_populations > 99 :
-			demography = msprime.Demography()
-			demography.add_population(name="p1", initial_size=K)
-			for pop in ts_A.populations():
-				if pop.id == 0 :
-					continue
-				name = pop.metadata['name']
-				demography.add_population(name=name, initial_size=int(K/(ts_A.num_populations)))
-				demography.add_mass_migration(time=gen, source=name, dest="p1", proportion=1)
-			ts_A = pyslim.recapitate(ts_A, recombination_rate = 1.1e-8, random_seed = seed, demography = demography)  
-		else :
-			recap_ts_A = pyslim.recapitate(ts_A, recombination_rate = 1.1e-8, ancestral_Ne = K, random_seed = seed)
+		demography = msprime.Demography()
+		demography.add_population(name="p1", initial_size=K)
+		for pop in ts_A.populations():
+			if pop.id == 0 :
+				continue
+			name = pop.metadata['name']
+			demography.add_population(name=name, initial_size=int(K/(ts_A.num_populations)))
+			demography.add_mass_migration(time=gen, source=name, dest="p1", proportion=1)
+		ts_A = pyslim.recapitate(ts_A, recombination_rate = 1.1e-8, random_seed = seed, demography = demography)  
 
 	tsX_max_roots = max(t.num_roots for t in ts_X.trees())
 	if tsX_max_roots > 1 :
-		if ts_X.num_populations > 99 :
-			demography = msprime.Demography()
-			demography.add_population(name="p1", initial_size=3/4*K)
-			for pop in ts_X.populations():
-				if pop.id == 0 :
-					continue
-				name = pop.metadata['name']
-				demography.add_population(name=name, initial_size=int(3*K/(4*ts_X.num_populations)))
-				demography.add_mass_migration(time=gen, source=name, dest="p1", proportion=1)
-			ts_X = pyslim.recapitate(ts_X, recombination_rate = 1e-8, random_seed = seed, demography = demography) 
-		else :
-			recap_ts_X = pyslim.recapitate(ts_X, recombination_rate = 1e-8, ancestral_Ne = 3/4*K, random_seed = seed)
+		demography = msprime.Demography()
+		demography.add_population(name="p1", initial_size=3/4*K)
+		for pop in ts_X.populations():
+			if pop.id == 0 :
+				continue
+			name = pop.metadata['name']
+			demography.add_population(name=name, initial_size=int(3*K/(4*ts_X.num_populations)))
+			demography.add_mass_migration(time=gen, source=name, dest="p1", proportion=1)
+		ts_X = pyslim.recapitate(ts_X, recombination_rate = 1e-8, random_seed = seed, demography = demography) 
 
 	# sample individuals and simplify
 	nodes_M = []

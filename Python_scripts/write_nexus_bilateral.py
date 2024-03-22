@@ -76,24 +76,8 @@ print("There are ", ts_Y.num_trees, " Y trees")
 print("There are", ts_X.num_trees, " X trees")
 print("There are", ts_mito.num_trees, " Mito trees")
 
-###### Recapitate if there is more than 1 root ######
-"""
-# Recapitate if there is more than 1 root
-tsA_max_roots = max(t.num_roots for t in ts_A.trees())
-if tsA_max_roots > 1 :
-    ts_A = pyslim.recapitate(ts_A, recombination_rate = 1.1e-8, ancestral_Ne = K, random_seed = seed)  
-print('nb roots A', tsA_max_roots)
-
-tsX_max_roots = max(t.num_roots for t in ts_X.trees())
-if tsX_max_roots > 1 :
-    ts_X = pyslim.recapitate(ts_X, recombination_rate = 1e-8, ancestral_Ne = int(3/4*K), random_seed = seed) 
-print('nb roots X', tsX_max_roots)
-"""
-
 ###### Add mutations ######
 
-#mutated_ts_A = msprime.sim_mutations(ts_A, rate = 2.5e-8, random_seed = seed, model = model, keep = False)
-#mutated_ts_X = msprime.sim_mutations(ts_X, rate = 2e-8, random_seed = seed, model = model, keep = False)
 mutated_ts_Y = msprime.sim_mutations(ts_Y, rate = 2.5e-8, random_seed = seed, model = "jc69", keep = False)
 mutated_ts_mito = msprime.sim_mutations(ts_mito, rate = 5.5e-7, random_seed = seed, model = "jc69", keep = False)
 
@@ -113,7 +97,7 @@ for ind in ts.individuals() :
         indM[subpop].append(ind.id)
 
 listOfPop = list(indM.keys())
-print(listOfPop)
+
 for subpop in listOfPop:
     # sample N males and N females per village
     N = int(sample_size/2)
@@ -129,9 +113,6 @@ for subpop in listOfPop:
 
     nodes_ts_Y = [i for i in nodes_M if i in id_Y] # nodes' IDs in ts
     nodes_Y.extend([ts_Y_map[1][i] for i in nodes_ts_Y]) # nodes' IDs in recap_ts_Y
-
-    #nodes_ts_X = [i for i in nodes if i in id_X] # nodes' IDs in ts
-    #nodes_X = [ts_X_map[1][i] for i in nodes_ts_X] # nodes' IDs in recap_ts_X
 
     nodes_ts_mito = [i for i in nodes_F if i in id_Mito] # nodes' IDs in ts
     nodes_mito.extend([ts_mito_map[1][i] for i in nodes_ts_mito]) # nodes' IDs in recap_ts_mito
